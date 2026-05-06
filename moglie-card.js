@@ -1,9 +1,9 @@
-// 1. Import your base64 images with Cache Busters (?v=10)
-import { normal_monkey } from './normal-monkey.js?v=10';
-import { winter_monkey } from './winter-monkey.js?v=10';
-import { rainy_monkey } from './rainy-monkey.js?v=10';
-import { summer_monkey } from './summer-monkey.js?v=10';
-import { sleepy_monkey } from './sleepy-monkey.js?v=10';
+// 1. Import your base64 images with Cache Busters (?v=12)
+import { normal_monkey } from './normal-monkey.js?v=12';
+import { winter_monkey } from './winter-monkey.js?v=12';
+import { rainy_monkey } from './rainy-monkey.js?v=12';
+import { summer_monkey } from './summer-monkey.js?v=12';
+import { sleepy_monkey } from './sleepy-monkey.js?v=12';
 
 /* -------------------------------------------------------------------
    MAIN CARD COMPONENT
@@ -65,7 +65,7 @@ class MoglieCard extends HTMLElement {
 
     const wanState = wanEntity && wanEntity.state !== undefined ? String(wanEntity.state).toLowerCase() : 'unknown';
     const alarmState = alarmEntity && alarmEntity.state !== undefined ? String(alarmEntity.state).toLowerCase() : 'unknown';
-    const weatherState = weatherEntity && weatherEntity.state !== undefined ? String(weatherState).toLowerCase() : 'unknown';
+    const weatherState = weatherEntity && weatherEntity.state !== undefined ? String(weatherEntity.state).toLowerCase() : 'unknown';
     
     const isWanActive = wanState === 'on' || wanState === 'connected'; 
     const isOffState = alarmState === 'disarmed';
