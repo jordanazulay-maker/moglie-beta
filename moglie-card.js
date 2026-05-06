@@ -26,10 +26,11 @@ class MoglieCard extends HTMLElement {
     };
   }
 
-  // This runs when the card is added to the dashboard
+  // Runs once when the card is added to the dashboard
   setConfig(config) {
     this.config = config;
 
+    // Build the DOM structure only if it doesn't already exist
     if (!this.content) {
       this.innerHTML = `
         <ha-card>
@@ -43,12 +44,14 @@ class MoglieCard extends HTMLElement {
       this.image = this.querySelector('#moglie-image');
       this.content = this.querySelector('#moglie-text');
 
-      // Add the click event to open the Home Assistant menu
+      // Click event for native More Info dialog
       this.container.addEventListener('click', () => {
-        if (!this.config || !this.config.alarm_entity) return;
-        const event = new Event('hass-more-info', { bubbles: true, composed: true });
-        event.detail = { entityId: this.config.alarm_entity };
-        this.dispatchEvent(event);
+        if (!this.config?.alarm_entity) return;
+        this.dispatchEvent(new CustomEvent('hass-more-info', {
+          bubbles: true,
+          composed: true,
+          detail: { entityId: this.config.alarm_entity }
+        }));
       });
     }
 
@@ -58,98 +61,89 @@ class MoglieCard extends HTMLElement {
     }
   }
 
-  // This runs EVERY time a state changes in Home Assistant
+  // Runs every time a state changes in Home Assistant
   set hass(hass) {
-    if (!this.config || !this.config.wan_entity || !this.config.alarm_entity || !this.config.weather_entity) return;
+    if (!this.config?.wan_entity || !this.config?.alarm_entity || !this.config?.weather_entity) return;
 
-    // Grab entities
+    // Grab entities cleanly
     const wanEntity = hass.states[this.config.wan_entity];
     const alarmEntity = hass.states[this.config.alarm_entity];
     const weatherEntity = hass.states[this.config.weather_entity];
 
-    const wanState = wanEntity ? wanEntity.state : 'unknown';
-    const alarmState = alarmEntity ? alarmEntity.state : 'unknown';
-    const weatherState = weatherEntity ? weatherEntity.state.toLowerCase() : 'unknown';
+    const wanState = wanEntity?.state || 'unknown';
+    const alarmState = alarmEntity?.state || 'unknown';
+    const weatherState = weatherEntity?.state?.toLowerCase() || 'unknown';
     
+    // 1. Identify Logic States
     const isWanActive = wanState === 'on' || wanState === 'connected'; 
     const isOffState = alarmState === 'disarmed';
     const isHomeState = alarmState === 'armed_home';
 
-    // CUSTOM NIGHT MODE LOGIC
+    // 2. Custom Night Mode Logic
     const currentHour = new Date().getHours();
     const nightStart = parseInt(this.config.night_start) || 22;
     const nightEnd = parseInt(this.config.night_end) || 6;
-    let isNightMode = false;
     
-    // Account for wrapping around midnight (e.g., 22 to 6 vs 1 to 5)
-    if (nightStart > nightEnd) {
-      isNightMode = currentHour >= nightStart || currentHour < nightEnd;
-    } else {
-      isNightMode = currentHour >= nightStart && currentHour < nightEnd;
-    }
+    const isNightMode = nightStart > nightEnd 
+      ? (currentHour >= nightStart || currentHour < nightEnd) 
+      : (currentHour >= nightStart && currentHour < nightEnd);
 
-    // Weather Triggers
+    // 3. Weather Triggers
+    const temp = weatherEntity?.attributes?.temperature ? parseFloat(weatherEntity.attributes.temperature) : null;
     const isRaining = ['rainy', 'pouring', 'lightning-rainy'].includes(weatherState);
     const isSnowing = ['snowy', 'snowy-rainy', 'hail'].includes(weatherState);
-    const temp = weatherEntity && weatherEntity.attributes ? parseFloat(weatherEntity.attributes.temperature) : null;
     const isHot = temp !== null && temp > 90;
     const isCold = temp !== null && temp < 40;
     const showWinter = isSnowing || isCold;
 
+    // Efficiency: Status Key (Prevents expensive DOM updates if the visual state hasn't changed)
     const statusKey = `${wanState}-${alarmState}-${isNightMode}-${isRaining}-${isHot}-${showWinter}`;
     if (this._lastStatus === statusKey) return; 
     this._lastStatus = statusKey;
 
-    // CUSTOMIZABLE QUOTES (Falls back to default if user left it blank)
-    const msgWanOffline = this.config.quote_offline || "Moglie is stranded. The WAN connection has been lost!";
-    const msgCold = this.config.quote_cold || "Brrr! It's freezing out there!";
-    const msgRain = this.config.quote_rain || "Looks like rain, grabbing my coat!";
-    const msgHot = this.config.quote_hot || "It's boiling! Need a banana smoothie.";
-    const msgNight = this.config.quote_night || "Zzz... Moglie is sleeping...";
-    const msgDisarmed = this.config.quote_disarmed || "System's off! The rest of the primates ditched their post for a banana run. Typical.";
-    const msgArmedHome = this.config.quote_armed_home || "Welcome Home! The WAN is strong. Tell me you brought more bananas!";
-    const msgArmedAway = this.config.quote_armed_away || "The rest of the primates are on patrol. I'll watch the trees until they get back!";
+    // 4. Custom Quotes Dictionary (Falls back to defaults)
+    const quotes = {
+      offline: this.config.quote_offline || "Moglie is stranded. The WAN connection has been lost!",
+      cold: this.config.quote_cold || "Brrr! It's freezing out there!",
+      rain: this.config.quote_rain || "Looks like rain, grabbing my coat!",
+      hot: this.config.quote_hot || "It's boiling! Need a banana smoothie.",
+      night: this.config.quote_night || "Zzz... Moglie is sleeping...",
+      disarmed: this.config.quote_disarmed || "System's off! The rest of the primates ditched their post for a banana run. Typical.",
+      armedHome: this.config.quote_armed_home || "Welcome Home! The WAN is strong. Tell me you brought more bananas!",
+      armedAway: this.config.quote_armed_away || "The rest of the primates are on patrol. I'll watch the trees until they get back!"
+    };
 
+    // Reset baseline classes and styles on update
     this.content.className = "text-box";
-    this.image.className = "";
     this.image.style.filter = "none"; 
 
-    // THE MASTER PRIORITY LIST
+    // 5. THE MASTER PRIORITY LIST
     if (!isWanActive) {
-      this.image.src = normal_monkey;
-      this.content.innerHTML = msgWanOffline;
-      this.content.className = "text-box status-warning";
+      this.updateUI(normal_monkey, quotes.offline, "2px solid var(--disabled-text-color, gray)");
+      this.content.classList.add("status-warning");
       this.image.style.filter = "grayscale(100%)";
-      this.container.style.border = "2px solid var(--disabled-text-color, gray)"; 
     } else if (showWinter) {
-      this.image.src = winter_monkey;
-      this.content.innerHTML = msgCold; 
-      this.container.style.border = "2px solid #00BCD4"; 
+      this.updateUI(winter_monkey, quotes.cold, "2px solid #00BCD4");
     } else if (isRaining) {
-      this.image.src = rainy_monkey;
-      this.content.innerHTML = msgRain;
-      this.container.style.border = "2px solid #2196F3";
+      this.updateUI(rainy_monkey, quotes.rain, "2px solid #2196F3");
     } else if (isHot) {
-      this.image.src = sunny_monkey;
-      this.content.innerHTML = msgHot;
-      this.container.style.border = "2px solid #FF9800";
+      this.updateUI(sunny_monkey, quotes.hot, "2px solid #FF9800");
     } else if (isNightMode) {
-      this.image.src = sleepy_monkey;
-      this.content.innerHTML = msgNight;
-      this.container.style.border = "2px solid #673AB7";
+      this.updateUI(sleepy_monkey, quotes.night, "2px solid #673AB7");
     } else if (isOffState) {
-      this.image.src = normal_monkey;
-      this.content.innerHTML = msgDisarmed;
-      this.container.style.border = "2px solid var(--warning-color, orange)"; 
+      this.updateUI(normal_monkey, quotes.disarmed, "2px solid var(--warning-color, orange)");
     } else if (isHomeState) {
-      this.image.src = normal_monkey;
-      this.content.innerHTML = msgArmedHome;
-      this.container.style.border = "2px solid var(--success-color, green)"; 
+      this.updateUI(normal_monkey, quotes.armedHome, "2px solid var(--success-color, green)");
     } else {
-      this.image.src = normal_monkey;
-      this.content.innerHTML = msgArmedAway;
-      this.container.style.border = "2px solid var(--error-color, red)"; 
+      this.updateUI(normal_monkey, quotes.armedAway, "2px solid var(--error-color, red)");
     }
+  }
+
+  // DOM update helper function to keep things clean
+  updateUI(imageSrc, text, borderStyle) {
+    if (this.image.src !== imageSrc) this.image.src = imageSrc;
+    this.content.innerHTML = text;
+    this.container.style.border = borderStyle;
   }
 
   getCardSize() { return 3; }
@@ -161,8 +155,17 @@ customElements.define('moglie-card', MoglieCard);
    VISUAL EDITOR COMPONENT (GUI)
 ------------------------------------------------------------------- */
 class MoglieCardEditor extends HTMLElement {
-  setConfig(config) {
+  
+  async setConfig(config) {
     this._config = config;
+
+    // Force Home Assistant to load the dropdown picker components
+    if (!customElements.get("ha-entity-picker")) {
+      const helpers = await window.loadCardHelpers();
+      const dummyCard = await helpers.createCardElement({ type: "entities", entities: [] });
+      await dummyCard.constructor.getConfigElement();
+    }
+
     if (!this._rendered) {
       this.render();
       this._rendered = true;
@@ -171,66 +174,71 @@ class MoglieCardEditor extends HTMLElement {
 
   set hass(hass) {
     this._hass = hass;
-    // Pass the hass object down to the entity pickers so they can load dropdowns
     this.querySelectorAll('ha-entity-picker').forEach(picker => picker.hass = hass);
   }
 
   render() {
     this.innerHTML = `
-      <div style="display: flex; flex-direction: column; gap: 16px;">
+      <div style="display: flex; flex-direction: column; gap: 24px; padding: 8px 0;">
         
-        <div>
-          <h3>Entities</h3>
-          <ha-entity-picker id="wan_entity" label="WAN / Network Entity (Sensor)" allow-custom-entity></ha-entity-picker>
-          <ha-entity-picker id="alarm_entity" label="Alarm Control Panel Entity" include-domains="['alarm_control_panel']" allow-custom-entity></ha-entity-picker>
-          <ha-entity-picker id="weather_entity" label="Weather Entity" include-domains="['weather']" allow-custom-entity></ha-entity-picker>
+        <div style="display: flex; flex-direction: column; gap: 12px;">
+          <h3 style="margin: 0; color: var(--primary-text-color);">Entity Configuration</h3>
+          <p style="margin: 0; color: var(--secondary-text-color); font-size: 0.9em;">Select the entities for Moglie to monitor.</p>
+          <ha-entity-picker id="wan_entity" label="WAN Entity (Sensor)"></ha-entity-picker>
+          <ha-entity-picker id="alarm_entity" label="Alarm Entity" include-domains="['alarm_control_panel']"></ha-entity-picker>
+          <ha-entity-picker id="weather_entity" label="Weather Entity" include-domains="['weather']"></ha-entity-picker>
         </div>
 
-        <div>
-          <h3>Night Mode Schedule (24h format)</h3>
-          <div style="display: flex; gap: 10px;">
-            <ha-textfield id="night_start" label="Start Hour (e.g. 22 for 10 PM)" type="number" style="flex: 1;"></ha-textfield>
-            <ha-textfield id="night_end" label="End Hour (e.g. 6 for 6 AM)" type="number" style="flex: 1;"></ha-textfield>
+        <div style="display: flex; flex-direction: column; gap: 12px;">
+          <h3 style="margin: 0; color: var(--primary-text-color);">Night Mode Schedule</h3>
+          <div style="display: flex; gap: 16px;">
+            <ha-textfield id="night_start" label="Start Hour (0-23)" type="number" style="flex: 1;"></ha-textfield>
+            <ha-textfield id="night_end" label="End Hour (0-23)" type="number" style="flex: 1;"></ha-textfield>
           </div>
         </div>
 
-        <div>
-          <h3>Custom Quotes (Leave blank for default)</h3>
-          <ha-textfield id="quote_offline" label="WAN Offline Quote" style="width: 100%; margin-bottom: 8px;"></ha-textfield>
-          <ha-textfield id="quote_disarmed" label="Disarmed Quote" style="width: 100%; margin-bottom: 8px;"></ha-textfield>
-          <ha-textfield id="quote_armed_home" label="Armed Home Quote" style="width: 100%; margin-bottom: 8px;"></ha-textfield>
-          <ha-textfield id="quote_armed_away" label="Armed Away Quote" style="width: 100%; margin-bottom: 8px;"></ha-textfield>
-          <ha-textfield id="quote_night" label="Night Mode Quote" style="width: 100%; margin-bottom: 8px;"></ha-textfield>
+        <div style="display: flex; flex-direction: column; gap: 12px;">
+          <h3 style="margin: 0; color: var(--primary-text-color);">Custom Quotes</h3>
+          <p style="margin: 0; color: var(--secondary-text-color); font-size: 0.9em;">Leave blank to use Moglie's default phrases.</p>
+          <ha-textfield id="quote_offline" label="WAN Offline"></ha-textfield>
+          <ha-textfield id="quote_disarmed" label="Disarmed"></ha-textfield>
+          <ha-textfield id="quote_armed_home" label="Armed Home"></ha-textfield>
+          <ha-textfield id="quote_armed_away" label="Armed Away"></ha-textfield>
+          <ha-textfield id="quote_night" label="Night Mode"></ha-textfield>
         </div>
 
       </div>
     `;
 
-    // Helper function to bind the UI inputs to the YAML config
-    const bindInput = (id) => {
+    // Seamlessly bind UI inputs to the YAML config
+    const inputs = [
+      'wan_entity', 'alarm_entity', 'weather_entity', 'night_start', 'night_end', 
+      'quote_offline', 'quote_disarmed', 'quote_armed_home', 'quote_armed_away', 'quote_night'
+    ];
+
+    inputs.forEach((id) => {
       const el = this.querySelector(`#${id}`);
       if (el) {
         el.value = this._config[id] !== undefined ? this._config[id] : '';
-        el.addEventListener('value-changed', (e) => this.updateConfig(id, e.detail.value)); // For entity-pickers
-        el.addEventListener('input', (e) => this.updateConfig(id, e.target.value));         // For textfields
+        const eventName = el.tagName === 'HA-ENTITY-PICKER' ? 'value-changed' : 'input';
+        
+        el.addEventListener(eventName, (e) => {
+          const value = e.detail?.value !== undefined ? e.detail.value : e.target.value;
+          this.updateConfig(id, value);
+        });
       }
-    };
-
-    ['wan_entity', 'alarm_entity', 'weather_entity', 'night_start', 'night_end', 
-     'quote_offline', 'quote_disarmed', 'quote_armed_home', 'quote_armed_away', 'quote_night'
-    ].forEach(bindInput);
+    });
   }
 
   // Fires an event telling Home Assistant to save the updated YAML
   updateConfig(key, value) {
     if (!this._config || this._config[key] === value) return;
     const newConfig = { ...this._config, [key]: value };
-    const event = new CustomEvent("config-changed", {
+    this.dispatchEvent(new CustomEvent("config-changed", {
       detail: { config: newConfig },
       bubbles: true,
       composed: true,
-    });
-    this.dispatchEvent(event);
+    }));
   }
 }
 customElements.define("moglie-card-editor", MoglieCardEditor);
