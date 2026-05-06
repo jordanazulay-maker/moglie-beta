@@ -1,7 +1,8 @@
 import { normal_monkey } from "./normal-monkey.js";
 import { sleepy_monkey } from "./sleepy-monkey.js";
 import { rainy_monkey } from "./rainy-monkey.js";
-import { sunny_monkey } from "./sunny-monkey.js"; // Added Sunny Monkey
+import { sunny_monkey } from "./sunny-monkey.js"; 
+import { winter_monkey } from "./winter-monkey.js"; // Added Winter Monkey
 
 class MoglieBetaCard extends HTMLElement {
   static getStubConfig() {
@@ -116,10 +117,14 @@ class MoglieBetaCard extends HTMLElement {
     
     // Weather condition checks
     const isRaining = ['rain', 'pouring', 'lightning-rainy', 'snowy-rainy'].includes(weatherState);
+    const isSnowing = ['snowy', 'snowy-heavy'].includes(weatherState);
     
-    // Temperature check for Sunny Monkey
+    // Temperature checks for Sunny and Winter Monkey
     const temperature = weatherEntity && weatherEntity.attributes ? weatherEntity.attributes.temperature : null;
     const isHot = temperature !== null && parseFloat(temperature) > 90;
+    const isCold = temperature !== null && parseFloat(temperature) < 40; // Triggers below 40 degrees
+    
+    const showWinter = isSnowing || isCold;
 
     let isNightMode = false;
     
@@ -144,14 +149,16 @@ class MoglieBetaCard extends HTMLElement {
       }
     }
 
-    // Include isHot in the status key to trigger a render update
-    const statusKey = `${wanState}-${alarmState}-${isNightMode}-${isRaining}-${isHot}`;
+    // Include winter conditions in the status key to trigger a render update
+    const statusKey = `${wanState}-${alarmState}-${isNightMode}-${isRaining}-${isHot}-${showWinter}`;
     if (this._lastStatus === statusKey) return; 
     this._lastStatus = statusKey;
 
-    // Determine which image to show based on conditions
+    // Determine which image to show based on conditions (Rain > Snow/Cold > Hot > Night > Normal)
     if (isRaining) {
       this.image.src = rainy_monkey;
+    } else if (showWinter) {
+      this.image.src = winter_monkey;
     } else if (isHot) {
       this.image.src = sunny_monkey;
     } else if (isNightMode) {
@@ -167,6 +174,7 @@ class MoglieBetaCard extends HTMLElement {
     const msgNight = this.config.text_night || `The rest of the pack is sleeping.<br>Why aren't we?`;
     const msgRain = this.config.text_rain || `The rest of the primates are<br>on patrol in the rain. Glad<br>I have my raincoat!`;
     const msgHot = this.config.text_hot || `It's sweltering out there!<br>I'm melting.<br>Pass me an ice cold banana.`;
+    const msgCold = this.config.text_cold || `Brrr... it's freezing out here!<br>I'm wearing my warmest coat.<br>Bring me some hot cocoa!`;
 
     if (!isWanActive) {
       this.content.innerHTML = msgWanOffline;
@@ -186,6 +194,8 @@ class MoglieBetaCard extends HTMLElement {
     } else {
       if (isRaining) {
         this.content.innerHTML = msgRain;
+      } else if (showWinter) {
+        this.content.innerHTML = msgCold;
       } else if (isHot) {
         this.content.innerHTML = msgHot;
       } else if (isNightMode) {
@@ -236,7 +246,8 @@ class MoglieBetaCardEditor extends HTMLElement {
         { name: "text_armed_away", label: "Custom Text: Armed Away/Other", selector: { text: { multiline: true } } },
         { name: "text_night", label: "Custom Text: Night Mode", selector: { text: { multiline: true } } },
         { name: "text_rain", label: "Custom Text: Raining", selector: { text: { multiline: true } } },
-        { name: "text_hot", label: "Custom Text: Hot Weather (> 90)", selector: { text: { multiline: true } } }
+        { name: "text_hot", label: "Custom Text: Hot Weather (> 90)", selector: { text: { multiline: true } } },
+        { name: "text_cold", label: "Custom Text: Cold Weather (< 40 or Snow)", selector: { text: { multiline: true } } }
       ];
 
       this.formElement.addEventListener("value-changed", (ev) => {
@@ -251,5 +262,4 @@ class MoglieBetaCardEditor extends HTMLElement {
     this.formElement.data = this._config;
   }
 }
-// Renamed from moglie-ha-card-editor
 customElements.define("moglie-beta-card-editor", MoglieBetaCardEditor);
