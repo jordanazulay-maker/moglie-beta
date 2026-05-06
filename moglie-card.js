@@ -1,9 +1,9 @@
-// 1. Import your base64 images with Cache Busters (?v=16)
-import { normal_monkey } from './normal-monkey.js?v=16';
-import { winter_monkey } from './winter-monkey.js?v=16';
-import { rainy_monkey } from './rainy-monkey.js?v=16';
-import { summer_monkey } from './summer-monkey.js?v=16';
-import { sleepy_monkey } from './sleepy-monkey.js?v=16';
+// 1. Import your base64 images with Cache Busters (?v=17)
+import { normal_monkey } from './normal-monkey.js?v=17';
+import { winter_monkey } from './winter-monkey.js?v=17';
+import { rainy_monkey } from './rainy-monkey.js?v=17';
+import { summer_monkey } from './summer-monkey.js?v=17';
+import { sleepy_monkey } from './sleepy-monkey.js?v=17';
 
 /* -------------------------------------------------------------------
    MAIN CARD COMPONENT
@@ -164,7 +164,7 @@ customElements.define('moglie-card', MoglieCard);
 
 
 /* -------------------------------------------------------------------
-   VISUAL EDITOR COMPONENT (GUI) WITH INPUT BOXES
+   VISUAL EDITOR COMPONENT (GUI) - FIXED FOR FUNCTIONAL INPUTS
 ------------------------------------------------------------------- */
 class MoglieCardEditor extends HTMLElement {
   
@@ -176,8 +176,15 @@ class MoglieCardEditor extends HTMLElement {
     }
   }
 
+  // FIXED: This method is required to let the input boxes talk to Home Assistant
   set hass(hass) {
     this._hass = hass;
+    if (this._rendered) {
+      const inputs = this.querySelectorAll("ha-textfield");
+      inputs.forEach(input => {
+        input.hass = hass;
+      });
+    }
   }
 
   render() {
@@ -211,13 +218,13 @@ class MoglieCardEditor extends HTMLElement {
       </div>
     `;
 
-    const inputs = [
+    const inputIds = [
       'wan_entity', 'alarm_entity', 'weather_entity', 'night_start', 'night_end', 
       'quote_offline', 'quote_disarmed', 'quote_armed_home', 'quote_armed_away', 'quote_night'
     ];
 
-    inputs.forEach((id) => {
-      const el = this.querySelector(\`#\${id}\`);
+    inputIds.forEach((id) => {
+      const el = this.querySelector(`#${id}`);
       if (el) {
         el.value = this._config[id] !== undefined ? this._config[id] : '';
         el.addEventListener('input', (e) => this.updateConfig(id, e.target.value));
