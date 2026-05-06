@@ -1,9 +1,9 @@
-// 1. Import your base64 images with Cache Busters (?v=17)
-import { normal_monkey } from './normal-monkey.js?v=17';
-import { winter_monkey } from './winter-monkey.js?v=17';
-import { rainy_monkey } from './rainy-monkey.js?v=17';
-import { summer_monkey } from './summer-monkey.js?v=17';
-import { sleepy_monkey } from './sleepy-monkey.js?v=17';
+// 1. Import your base64 images with Cache Busters (?v=12)
+import { normal_monkey } from './normal-monkey.js?v=12';
+import { winter_monkey } from './winter-monkey.js?v=12';
+import { rainy_monkey } from './rainy-monkey.js?v=12';
+import { summer_monkey } from './summer-monkey.js?v=12';
+import { sleepy_monkey } from './sleepy-monkey.js?v=12';
 
 /* -------------------------------------------------------------------
    MAIN CARD COMPONENT
@@ -164,7 +164,7 @@ customElements.define('moglie-card', MoglieCard);
 
 
 /* -------------------------------------------------------------------
-   VISUAL EDITOR COMPONENT (GUI) - FIXED FOR FUNCTIONAL INPUTS
+   VISUAL EDITOR COMPONENT (GUI) WITH TEXT FIELDS
 ------------------------------------------------------------------- */
 class MoglieCardEditor extends HTMLElement {
   
@@ -176,13 +176,13 @@ class MoglieCardEditor extends HTMLElement {
     }
   }
 
-  // FIXED: This method is required to let the input boxes talk to Home Assistant
   set hass(hass) {
     this._hass = hass;
+    // Updated set hass to pass the hass object to the ha-textfields
     if (this._rendered) {
-      const inputs = this.querySelectorAll("ha-textfield");
-      inputs.forEach(input => {
-        input.hass = hass;
+      const textfields = this.querySelectorAll("ha-textfield");
+      textfields.forEach(field => {
+        field.hass = hass;
       });
     }
   }
@@ -193,9 +193,18 @@ class MoglieCardEditor extends HTMLElement {
         
         <div style="display: flex; flex-direction: column; gap: 12px;">
           <h3 style="margin: 0; color: var(--primary-text-color);">Entity Configuration</h3>
-          <ha-textfield id="wan_entity" label="WAN Entity ID (e.g., binary_sensor.wan)"></ha-textfield>
-          <ha-textfield id="alarm_entity" label="Alarm Entity ID (e.g., alarm_control_panel.home)"></ha-textfield>
-          <ha-textfield id="weather_entity" label="Weather Entity ID (e.g., weather.home)"></ha-textfield>
+          
+          <div>
+            <ha-textfield id="wan_entity" label="WAN Entity ID (e.g., binary_sensor.wan)" style="width: 100%;"></ha-textfield>
+          </div>
+
+          <div>
+            <ha-textfield id="alarm_entity" label="Alarm Entity ID (e.g., alarm_control_panel.home)" style="width: 100%;"></ha-textfield>
+          </div>
+
+          <div>
+            <ha-textfield id="weather_entity" label="Weather Entity ID (e.g., weather.home)" style="width: 100%;"></ha-textfield>
+          </div>
         </div>
 
         <div style="display: flex; flex-direction: column; gap: 12px;">
@@ -218,15 +227,17 @@ class MoglieCardEditor extends HTMLElement {
       </div>
     `;
 
-    const inputIds = [
+    // Updated input list to include the entity text fields
+    const inputs = [
       'wan_entity', 'alarm_entity', 'weather_entity', 'night_start', 'night_end', 
       'quote_offline', 'quote_disarmed', 'quote_armed_home', 'quote_armed_away', 'quote_night'
     ];
 
-    inputIds.forEach((id) => {
+    inputs.forEach((id) => {
       const el = this.querySelector(`#${id}`);
       if (el) {
         el.value = this._config[id] !== undefined ? this._config[id] : '';
+        // ha-textfield uses 'input' or 'change' events for value updates
         el.addEventListener('input', (e) => this.updateConfig(id, e.target.value));
       }
     });
