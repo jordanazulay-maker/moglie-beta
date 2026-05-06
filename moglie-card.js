@@ -40,6 +40,7 @@ class MoglieCard extends HTMLElement {
       this.image = this.querySelector('#moglie-image');
       this.content = this.querySelector('#moglie-text');
 
+      // Tap action to bring up Home Assistant's more-info dialog
       this.container.addEventListener('click', () => {
         if (!this.config || !this.config.alarm_entity) return;
         this.dispatchEvent(new CustomEvent('hass-more-info', {
@@ -73,7 +74,7 @@ class MoglieCard extends HTMLElement {
     const isOffState = alarmState === 'disarmed';
     const isHomeState = alarmState === 'armed_home';
 
-    // 2. Custom Night Mode Logic
+    // 2. Custom Night Mode Logic (Handles wrapping past midnight)
     const currentHour = new Date().getHours();
     const nightStart = parseInt(this.config.night_start) || 22;
     const nightEnd = parseInt(this.config.night_end) || 6;
@@ -85,27 +86,30 @@ class MoglieCard extends HTMLElement {
       isNightMode = currentHour >= nightStart && currentHour < nightEnd;
     }
 
-    // 3. Weather Triggers (Wide Net for Rain & Safe Temp Checks)
+    // 3. Weather Triggers (Wide Net & Super-Safe Temp Checks)
     const isRaining = weatherState.includes('rain') || 
                       weatherState.includes('pour') || 
                       weatherState.includes('drizzle') || 
                       weatherState.includes('shower') || 
                       weatherState.includes('storm');
 
-    const temp = weatherEntity && weatherEntity.attributes && weatherEntity.attributes.temperature 
-      ? parseFloat(weatherEntity.attributes.temperature) 
-      : null;
+    // Smart Temperature Finder
+    let temp = null;
+    if (weatherEntity && weatherEntity.attributes && weatherEntity.attributes.temperature !== undefined) {
+      temp = parseFloat(weatherEntity.attributes.temperature);
+    } else if (!isNaN(parseFloat(weatherState))) {
+      temp = parseFloat(weatherState);
+    }
       
     const unit = weatherEntity && weatherEntity.attributes && weatherEntity.attributes.temperature_unit 
       ? weatherEntity.attributes.temperature_unit 
       : 'F';
       
     const isSnowing = ['snowy', 'snowy-rainy', 'hail'].includes(weatherState);
-    
     const isSunny = weatherState.includes('sunny') || weatherState.includes('clear');
+    
     const isHot = isSunny || (temp !== null && ((unit === 'F' && temp >= 80) || (unit === 'C' && temp >= 27)));
     const isCold = temp !== null && ((unit === 'F' && temp < 50) || (unit === 'C' && temp < 10));
-    
     const showWinter = isSnowing || isCold;
 
     const statusKey = `${wanState}-${alarmState}-${isNightMode}-${isRaining}-${isHot}-${showWinter}`;
@@ -127,7 +131,7 @@ class MoglieCard extends HTMLElement {
     this.content.className = "text-box";
     this.image.style.filter = "none"; 
 
-    // 5. THE MASTER PRIORITY LIST (Night mode now beats all weather!)
+    // 5. THE MASTER PRIORITY LIST (WAN > NIGHT > RAIN > WINTER > HOT > ALARM)
     if (!isWanActive) {
       this.updateUI(normal_monkey, quotes.offline, "2px solid var(--disabled-text-color, gray)");
       this.content.classList.add("status-warning");
