@@ -4,7 +4,7 @@
     <img src="https://raw.githubusercontent.com/jordanazulay-maker/moglie-ha/main/monkey.png" alt="Moglie Mascot" width="200" style="margin-bottom: 20px;">
   </div>
   
-  <h1 style="border-bottom: none;">Moglie HA</h1>
+  <h1 style="border-bottom: none;">Moglie HA BETA</h1>
   
   <p style="font-size: 1.2em; max-width: 600px; margin: 0 auto 20px auto; line-height: 1.5;">
     <b>You can put this primate right on your dashboard!</b><br>
