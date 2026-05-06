@@ -1,9 +1,9 @@
-// 1. Import your base64 images with Cache Busters (?v=15)
-import { normal_monkey } from './normal-monkey.js?v=15';
-import { winter_monkey } from './winter-monkey.js?v=15';
-import { rainy_monkey } from './rainy-monkey.js?v=15';
-import { summer_monkey } from './summer-monkey.js?v=15';
-import { sleepy_monkey } from './sleepy-monkey.js?v=15';
+// 1. Import your base64 images with Cache Busters (?v=16)
+import { normal_monkey } from './normal-monkey.js?v=16';
+import { winter_monkey } from './winter-monkey.js?v=16';
+import { rainy_monkey } from './rainy-monkey.js?v=16';
+import { summer_monkey } from './summer-monkey.js?v=16';
+import { sleepy_monkey } from './sleepy-monkey.js?v=16';
 
 /* -------------------------------------------------------------------
    MAIN CARD COMPONENT
@@ -164,7 +164,7 @@ customElements.define('moglie-card', MoglieCard);
 
 
 /* -------------------------------------------------------------------
-   VISUAL EDITOR COMPONENT (GUI) WITH ENTITY SELECTORS
+   VISUAL EDITOR COMPONENT (GUI) WITH INPUT BOXES
 ------------------------------------------------------------------- */
 class MoglieCardEditor extends HTMLElement {
   
@@ -178,13 +178,6 @@ class MoglieCardEditor extends HTMLElement {
 
   set hass(hass) {
     this._hass = hass;
-    if (this._rendered) {
-      // FIX: Passes the Home Assistant state to make selectors work
-      const pickers = this.querySelectorAll("ha-entity-picker");
-      pickers.forEach(picker => {
-        picker.hass = hass;
-      });
-    }
   }
 
   render() {
@@ -193,21 +186,9 @@ class MoglieCardEditor extends HTMLElement {
         
         <div style="display: flex; flex-direction: column; gap: 12px;">
           <h3 style="margin: 0; color: var(--primary-text-color);">Entity Configuration</h3>
-          
-          <div>
-            <label style="color: var(--secondary-text-color); font-size: 0.9em;">WAN Entity</label>
-            <ha-entity-picker id="wan_entity" label="Select WAN Sensor" allow-custom-entity></ha-entity-picker>
-          </div>
-
-          <div>
-            <label style="color: var(--secondary-text-color); font-size: 0.9em;">Alarm Control Panel</label>
-            <ha-entity-picker id="alarm_entity" label="Select Alarm Panel" domain-filter="alarm_control_panel" allow-custom-entity></ha-entity-picker>
-          </div>
-
-          <div>
-            <label style="color: var(--secondary-text-color); font-size: 0.9em;">Weather Entity</label>
-            <ha-entity-picker id="weather_entity" label="Select Weather" domain-filter="weather" allow-custom-entity></ha-entity-picker>
-          </div>
+          <ha-textfield id="wan_entity" label="WAN Entity ID (e.g., binary_sensor.wan)"></ha-textfield>
+          <ha-textfield id="alarm_entity" label="Alarm Entity ID (e.g., alarm_control_panel.home)"></ha-textfield>
+          <ha-textfield id="weather_entity" label="Weather Entity ID (e.g., weather.home)"></ha-textfield>
         </div>
 
         <div style="display: flex; flex-direction: column; gap: 12px;">
@@ -230,22 +211,16 @@ class MoglieCardEditor extends HTMLElement {
       </div>
     `;
 
-    const entityFields = ['wan_entity', 'alarm_entity', 'weather_entity'];
-    entityFields.forEach(id => {
-      const picker = this.querySelector(\`#\${id}\`);
-      if (picker) {
-        picker.value = this._config[id] || '';
-        picker.hass = this._hass;
-        picker.addEventListener('value-changed', (e) => this.updateConfig(id, e.detail.value));
-      }
-    });
+    const inputs = [
+      'wan_entity', 'alarm_entity', 'weather_entity', 'night_start', 'night_end', 
+      'quote_offline', 'quote_disarmed', 'quote_armed_home', 'quote_armed_away', 'quote_night'
+    ];
 
-    const textFields = ['night_start', 'night_end', 'quote_offline', 'quote_disarmed', 'quote_armed_home', 'quote_armed_away', 'quote_night'];
-    textFields.forEach(id => {
-      const field = this.querySelector(\`#\${id}\`);
-      if (field) {
-        field.value = this._config[id] !== undefined ? this._config[id] : '';
-        field.addEventListener('input', (e) => this.updateConfig(id, e.target.value));
+    inputs.forEach((id) => {
+      const el = this.querySelector(\`#\${id}\`);
+      if (el) {
+        el.value = this._config[id] !== undefined ? this._config[id] : '';
+        el.addEventListener('input', (e) => this.updateConfig(id, e.target.value));
       }
     });
   }
