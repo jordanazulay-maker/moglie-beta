@@ -1,8 +1,17 @@
-// 1. Identify States & Attributes
-    const wanState = wanEntity.state;
-    const alarmState = alarmEntity.state;
+// 1. Identify States & Attributes Safely (Prevents crashing if entity is missing)
+    const wanState = wanEntity ? wanEntity.state : 'unknown';
+    const alarmState = alarmEntity ? alarmEntity.state : 'unknown';
     const weatherState = weatherEntity ? weatherEntity.state.toLowerCase() : 'unknown';
     
+    // Define the missing boolean variables used in your logic!
+    // (Assuming WAN is a binary_sensor, 'on' means connected)
+    const isWanActive = wanState === 'on' || wanState === 'connected'; 
+    const isOffState = alarmState === 'disarmed';
+    const isHomeState = alarmState === 'armed_home';
+
+    // *Make sure isNightMode is defined somewhere above this block based on your schedule logic!*
+    // const isNightMode = ...; 
+
     // 2. Weather Triggers (Expanded for 2026 HA states)
     const isRaining = ['rainy', 'pouring', 'lightning-rainy'].includes(weatherState);
     const isSnowing = ['snowy', 'snowy-rainy', 'hail'].includes(weatherState);
@@ -15,7 +24,7 @@
     const showWinter = isSnowing || isCold;
 
     // 3. Status Key (Keep this to prevent flickering)
-    const statusKey = `${wanState}-${alarmState}-${isNightMode}-${isRaining}-${isHot}-${showWinter}`;
+    const statusKey = `${wanState}-${alarmState}-${typeof isNightMode !== 'undefined' ? isNightMode : false}-${isRaining}-${isHot}-${showWinter}`;
     if (this._lastStatus === statusKey) return; 
     this._lastStatus = statusKey;
 
@@ -47,7 +56,7 @@
       this.content.innerHTML = msgHot;
       this.container.style.border = "2px solid #FF9800";
 
-    } else if (isNightMode) {
+    } else if (typeof isNightMode !== 'undefined' && isNightMode) {
       this.image.src = sleepy_monkey;
       this.content.innerHTML = msgNight;
       this.container.style.border = "2px solid #673AB7";
