@@ -1,9 +1,9 @@
-// 1. Import your base64 images with Cache Busters (?v=4)
-import { normal_monkey } from './normal-monkey.js?v=4';
-import { winter_monkey } from './winter-monkey.js?v=4';
-import { rainy_monkey } from './rainy-monkey.js?v=4';
-import { summer_monkey } from './summer-monkey.js?v=4';
-import { sleepy_monkey } from './sleepy-monkey.js?v=4';
+// 1. Import your base64 images with Cache Busters (?v=7)
+import { normal_monkey } from './normal-monkey.js?v=7';
+import { winter_monkey } from './winter-monkey.js?v=7';
+import { rainy_monkey } from './rainy-monkey.js?v=7';
+import { summer_monkey } from './summer-monkey.js?v=7';
+import { sleepy_monkey } from './sleepy-monkey.js?v=7';
 
 /* -------------------------------------------------------------------
    MAIN CARD COMPONENT
@@ -179,7 +179,7 @@ class MoglieCardEditor extends HTMLElement {
   set hass(hass) {
     this._hass = hass;
     if (this._rendered) {
-      // Update entity pickers with current HASS object
+      // FIX: Force entity pickers to update with the new hass object
       const pickers = this.querySelectorAll("ha-entity-picker");
       pickers.forEach(picker => {
         picker.hass = hass;
@@ -233,7 +233,7 @@ class MoglieCardEditor extends HTMLElement {
     // Initialize values and listeners for entity pickers
     const entityFields = ['wan_entity', 'alarm_entity', 'weather_entity'];
     entityFields.forEach(id => {
-      const picker = this.querySelector(`#${id}`);
+      const picker = this.querySelector(\`#\${id}\`);
       if (picker) {
         picker.value = this._config[id] || '';
         picker.hass = this._hass;
@@ -244,7 +244,7 @@ class MoglieCardEditor extends HTMLElement {
     // Initialize values and listeners for text/number fields
     const textFields = ['night_start', 'night_end', 'quote_offline', 'quote_disarmed', 'quote_armed_home', 'quote_armed_away', 'quote_night'];
     textFields.forEach(id => {
-      const field = this.querySelector(`#${id}`);
+      const field = this.querySelector(\`#\${id}\`);
       if (field) {
         field.value = this._config[id] !== undefined ? this._config[id] : '';
         field.addEventListener('input', (e) => this.updateConfig(id, e.target.value));
