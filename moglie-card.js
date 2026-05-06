@@ -2,7 +2,7 @@ import { normal_monkey } from "./normal-monkey.js";
 import { sleepy_monkey } from "./sleepy-monkey.js";
 import { rainy_monkey } from "./rainy-monkey.js";
 
-class MoglieHaCard extends HTMLElement {
+class MoglieBetaCard extends HTMLElement {
   static getStubConfig() {
     return {
       wan_entity: "",
@@ -15,7 +15,7 @@ class MoglieHaCard extends HTMLElement {
   }
 
   static getConfigElement() {
-    return document.createElement("moglie-ha-card-editor");
+    return document.createElement("moglie-beta-card-editor");
   }
 
   setConfig(config) {
@@ -118,7 +118,6 @@ class MoglieHaCard extends HTMLElement {
 
     let isNightMode = false;
     
-    // FIXED LOGIC: Only apply night mode if the user has actually configured the start and end times
     if (this.config.night_start && this.config.night_end) {
       const startStr = this.config.night_start;
       const endStr = this.config.night_end;
@@ -144,8 +143,6 @@ class MoglieHaCard extends HTMLElement {
     if (this._lastStatus === statusKey) return; 
     this._lastStatus = statusKey;
 
-    // --- VISUAL LOGIC ---
-    // Swapped order: Raining takes priority over Sleepy!
     if (isRaining) {
       this.image.src = rainy_monkey;
     } else if (isNightMode) {
@@ -177,7 +174,6 @@ class MoglieHaCard extends HTMLElement {
       this.image.className = "";
       this.container.style.border = "2px solid var(--success-color)"; 
     } else {
-      // Text logic priority matching visual logic
       if (isRaining) {
         this.content.innerHTML = msgRain;
       } else if (isNightMode) {
@@ -192,18 +188,19 @@ class MoglieHaCard extends HTMLElement {
   }
 }
 
-customElements.define("moglie-ha-card", MoglieHaCard);
+// Renamed from moglie-ha-card to moglie-beta-card to prevent registry collisions
+customElements.define("moglie-beta-card", MoglieBetaCard);
 
 window.customCards = window.customCards || [];
-if (!window.customCards.some(card => card.type === 'moglie-ha-card')) {
+if (!window.customCards.some(card => card.type === 'moglie-beta-card')) {
   window.customCards.push({
-    type: "moglie-ha-card",
-    name: "Moglie-HA",
-    description: "WAN, Alarm, and Weather status monitoring with a friendly monkey."
+    type: "moglie-beta-card",
+    name: "Moglie-Beta",
+    description: "WAN, Alarm, and Weather status monitoring with a friendly monkey (Beta)."
   });
 }
 
-class MoglieHaCardEditor extends HTMLElement {
+class MoglieBetaCardEditor extends HTMLElement {
   setConfig(config) { this._config = config; }
   set hass(hass) { this._hass = hass; this.renderForm(); }
   
@@ -241,4 +238,5 @@ class MoglieHaCardEditor extends HTMLElement {
     this.formElement.data = this._config;
   }
 }
-customElements.define("moglie-ha-card-editor", MoglieHaCardEditor);
+// Renamed from moglie-ha-card-editor
+customElements.define("moglie-beta-card-editor", MoglieBetaCardEditor);
