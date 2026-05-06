@@ -10,12 +10,10 @@ import { sleepy_monkey } from './sleepy-monkey.js';
 ------------------------------------------------------------------- */
 class MoglieCard extends HTMLElement {
   
-  // Connects the visual editor to the card
   static getConfigElement() {
     return document.createElement("moglie-card-editor");
   }
 
-  // Provides the default YAML when adding the card from the UI picker
   static getStubConfig() {
     return {
       wan_entity: "",
@@ -26,11 +24,9 @@ class MoglieCard extends HTMLElement {
     };
   }
 
-  // Runs once when the card is added to the dashboard
   setConfig(config) {
     this.config = config;
 
-    // Build the DOM structure only if it doesn't already exist
     if (!this.content) {
       this.innerHTML = `
         <ha-card>
@@ -44,13 +40,10 @@ class MoglieCard extends HTMLElement {
       this.image = this.querySelector('#moglie-image');
       this.content = this.querySelector('#moglie-text');
 
-      // Click event for native More Info dialog
       this.container.addEventListener('click', () => {
         if (!this.config?.alarm_entity) return;
         this.dispatchEvent(new CustomEvent('hass-more-info', {
-          bubbles: true,
-          composed: true,
-          detail: { entityId: this.config.alarm_entity }
+          bubbles: true, composed: true, detail: { entityId: this.config.alarm_entity }
         }));
       });
     }
@@ -61,11 +54,9 @@ class MoglieCard extends HTMLElement {
     }
   }
 
-  // Runs every time a state changes in Home Assistant
   set hass(hass) {
     if (!this.config?.wan_entity || !this.config?.alarm_entity || !this.config?.weather_entity) return;
 
-    // Grab entities cleanly
     const wanEntity = hass.states[this.config.wan_entity];
     const alarmEntity = hass.states[this.config.alarm_entity];
     const weatherEntity = hass.states[this.config.weather_entity];
@@ -83,25 +74,26 @@ class MoglieCard extends HTMLElement {
     const currentHour = new Date().getHours();
     const nightStart = parseInt(this.config.night_start) || 22;
     const nightEnd = parseInt(this.config.night_end) || 6;
-    
     const isNightMode = nightStart > nightEnd 
       ? (currentHour >= nightStart || currentHour < nightEnd) 
       : (currentHour >= nightStart && currentHour < nightEnd);
 
-    // 3. Weather Triggers
+    // 3. Weather Triggers (Simplified for debugging)
+    // We added extra rain words just in case HA is reporting something slightly different.
+    const isRaining = ['rainy', 'pouring', 'lightning-rainy', 'drizzle', 'showers', 'light_rain'].includes(weatherState);
+    
+    // Keeping temperature variables, but they won't block the raincoat anymore
     const temp = weatherEntity?.attributes?.temperature ? parseFloat(weatherEntity.attributes.temperature) : null;
-    const isRaining = ['rainy', 'pouring', 'lightning-rainy'].includes(weatherState);
     const isSnowing = ['snowy', 'snowy-rainy', 'hail'].includes(weatherState);
     const isHot = temp !== null && temp > 90;
     const isCold = temp !== null && temp < 40;
     const showWinter = isSnowing || isCold;
 
-    // Efficiency: Status Key (Prevents expensive DOM updates if the visual state hasn't changed)
     const statusKey = `${wanState}-${alarmState}-${isNightMode}-${isRaining}-${isHot}-${showWinter}`;
     if (this._lastStatus === statusKey) return; 
     this._lastStatus = statusKey;
 
-    // 4. Custom Quotes Dictionary (Falls back to defaults)
+    // 4. Custom Quotes Dictionary
     const quotes = {
       offline: this.config.quote_offline || "Moglie is stranded. The WAN connection has been lost!",
       cold: this.config.quote_cold || "Brrr! It's freezing out there!",
@@ -113,19 +105,20 @@ class MoglieCard extends HTMLElement {
       armedAway: this.config.quote_armed_away || "The rest of the primates are on patrol. I'll watch the trees until they get back!"
     };
 
-    // Reset baseline classes and styles on update
+    // Reset baseline classes
     this.content.className = "text-box";
     this.image.style.filter = "none"; 
 
-    // 5. THE MASTER PRIORITY LIST
+    // 5. THE MASTER PRIORITY LIST (Adjusted so Rain beats Temperature)
     if (!isWanActive) {
       this.updateUI(normal_monkey, quotes.offline, "2px solid var(--disabled-text-color, gray)");
       this.content.classList.add("status-warning");
       this.image.style.filter = "grayscale(100%)";
+    } else if (isRaining) {
+      // RAIN is now at the top. If the word matches, the coat goes on.
+      this.updateUI(rainy_monkey, quotes.rain, "2px solid #2196F3");
     } else if (showWinter) {
       this.updateUI(winter_monkey, quotes.cold, "2px solid #00BCD4");
-    } else if (isRaining) {
-      this.updateUI(rainy_monkey, quotes.rain, "2px solid #2196F3");
     } else if (isHot) {
       this.updateUI(sunny_monkey, quotes.hot, "2px solid #FF9800");
     } else if (isNightMode) {
@@ -139,7 +132,6 @@ class MoglieCard extends HTMLElement {
     }
   }
 
-  // DOM update helper function to keep things clean
   updateUI(imageSrc, text, borderStyle) {
     if (this.image.src !== imageSrc) this.image.src = imageSrc;
     this.content.innerHTML = text;
@@ -150,22 +142,17 @@ class MoglieCard extends HTMLElement {
 }
 customElements.define('moglie-card', MoglieCard);
 
-
 /* -------------------------------------------------------------------
    VISUAL EDITOR COMPONENT (GUI)
 ------------------------------------------------------------------- */
 class MoglieCardEditor extends HTMLElement {
-  
   async setConfig(config) {
     this._config = config;
-
-    // Force Home Assistant to load the dropdown picker components
     if (!customElements.get("ha-entity-picker")) {
       const helpers = await window.loadCardHelpers();
       const dummyCard = await helpers.createCardElement({ type: "entities", entities: [] });
       await dummyCard.constructor.getConfigElement();
     }
-
     if (!this._rendered) {
       this.render();
       this._rendered = true;
@@ -180,7 +167,6 @@ class MoglieCardEditor extends HTMLElement {
   render() {
     this.innerHTML = `
       <div style="display: flex; flex-direction: column; gap: 24px; padding: 8px 0;">
-        
         <div style="display: flex; flex-direction: column; gap: 12px;">
           <h3 style="margin: 0; color: var(--primary-text-color);">Entity Configuration</h3>
           <p style="margin: 0; color: var(--secondary-text-color); font-size: 0.9em;">Select the entities for Moglie to monitor.</p>
@@ -188,7 +174,6 @@ class MoglieCardEditor extends HTMLElement {
           <ha-entity-picker id="alarm_entity" label="Alarm Entity" include-domains="['alarm_control_panel']"></ha-entity-picker>
           <ha-entity-picker id="weather_entity" label="Weather Entity" include-domains="['weather']"></ha-entity-picker>
         </div>
-
         <div style="display: flex; flex-direction: column; gap: 12px;">
           <h3 style="margin: 0; color: var(--primary-text-color);">Night Mode Schedule</h3>
           <div style="display: flex; gap: 16px;">
@@ -196,7 +181,6 @@ class MoglieCardEditor extends HTMLElement {
             <ha-textfield id="night_end" label="End Hour (0-23)" type="number" style="flex: 1;"></ha-textfield>
           </div>
         </div>
-
         <div style="display: flex; flex-direction: column; gap: 12px;">
           <h3 style="margin: 0; color: var(--primary-text-color);">Custom Quotes</h3>
           <p style="margin: 0; color: var(--secondary-text-color); font-size: 0.9em;">Leave blank to use Moglie's default phrases.</p>
@@ -206,22 +190,17 @@ class MoglieCardEditor extends HTMLElement {
           <ha-textfield id="quote_armed_away" label="Armed Away"></ha-textfield>
           <ha-textfield id="quote_night" label="Night Mode"></ha-textfield>
         </div>
-
       </div>
     `;
 
-    // Seamlessly bind UI inputs to the YAML config
-    const inputs = [
-      'wan_entity', 'alarm_entity', 'weather_entity', 'night_start', 'night_end', 
-      'quote_offline', 'quote_disarmed', 'quote_armed_home', 'quote_armed_away', 'quote_night'
-    ];
+    const inputs = ['wan_entity', 'alarm_entity', 'weather_entity', 'night_start', 'night_end', 
+      'quote_offline', 'quote_disarmed', 'quote_armed_home', 'quote_armed_away', 'quote_night'];
 
     inputs.forEach((id) => {
       const el = this.querySelector(`#${id}`);
       if (el) {
         el.value = this._config[id] !== undefined ? this._config[id] : '';
         const eventName = el.tagName === 'HA-ENTITY-PICKER' ? 'value-changed' : 'input';
-        
         el.addEventListener(eventName, (e) => {
           const value = e.detail?.value !== undefined ? e.detail.value : e.target.value;
           this.updateConfig(id, value);
@@ -230,28 +209,13 @@ class MoglieCardEditor extends HTMLElement {
     });
   }
 
-  // Fires an event telling Home Assistant to save the updated YAML
   updateConfig(key, value) {
     if (!this._config || this._config[key] === value) return;
     const newConfig = { ...this._config, [key]: value };
-    this.dispatchEvent(new CustomEvent("config-changed", {
-      detail: { config: newConfig },
-      bubbles: true,
-      composed: true,
-    }));
+    this.dispatchEvent(new CustomEvent("config-changed", { detail: { config: newConfig }, bubbles: true, composed: true }));
   }
 }
 customElements.define("moglie-card-editor", MoglieCardEditor);
 
-
-/* -------------------------------------------------------------------
-   CARD PICKER REGISTRATION
-------------------------------------------------------------------- */
 window.customCards = window.customCards || [];
-window.customCards.push({
-  type: "moglie-card",
-  name: "Moglie HA Beta",
-  description: "Moglie monitors your WAN status and security state.",
-  preview: true,
-  documentationURL: "https://github.com/jordanazulay-maker/moglie-ha"
-});
+window.customCards.push({ type: "moglie-card", name: "Moglie HA Beta", description: "Moglie monitors your WAN status and security state.", preview: true });
