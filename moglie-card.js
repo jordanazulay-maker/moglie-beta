@@ -1,9 +1,3 @@
-import { normal_monkey } from "./normal-monkey.js";
-import { sleepy_monkey } from "./sleepy-monkey.js";
-import { rainy_monkey } from "./rainy-monkey.js";
-import { sunny_monkey } from "./sunny-monkey.js"; 
-import { winter_monkey } from "./winter-monkey.js"; // Added Winter Monkey
-
 class MoglieBetaCard extends HTMLElement {
   static getStubConfig() {
     return {
@@ -37,7 +31,6 @@ class MoglieBetaCard extends HTMLElement {
             .moglie-container:hover { background: rgba(var(--rgb-primary-text-color), 0.05); }
             .text-box { line-height: 1.5; margin-bottom: 10px; font-size: 1.1em; min-height: 80px; color: var(--primary-text-color); }
             
-            /* Theme color fix to prevent images turning blue */
             .img-container img { 
               width: 110px; 
               transition: all 0.5s ease; 
@@ -115,14 +108,12 @@ class MoglieBetaCard extends HTMLElement {
     const isHomeState = ['armed_home'].includes(alarmState);
     const isOffState = ['off', 'disarmed'].includes(alarmState);
     
-    // Weather condition checks
     const isRaining = ['rain', 'pouring', 'lightning-rainy', 'snowy-rainy'].includes(weatherState);
     const isSnowing = ['snowy', 'snowy-heavy'].includes(weatherState);
     
-    // Temperature checks for Sunny and Winter Monkey
     const temperature = weatherEntity && weatherEntity.attributes ? weatherEntity.attributes.temperature : null;
     const isHot = temperature !== null && parseFloat(temperature) > 90;
-    const isCold = temperature !== null && parseFloat(temperature) < 40; // Triggers below 40 degrees
+    const isCold = temperature !== null && parseFloat(temperature) < 40; 
     
     const showWinter = isSnowing || isCold;
 
@@ -149,23 +140,9 @@ class MoglieBetaCard extends HTMLElement {
       }
     }
 
-    // Include winter conditions in the status key to trigger a render update
     const statusKey = `${wanState}-${alarmState}-${isNightMode}-${isRaining}-${isHot}-${showWinter}`;
     if (this._lastStatus === statusKey) return; 
     this._lastStatus = statusKey;
-
-    // Determine which image to show based on conditions (Rain > Snow/Cold > Hot > Night > Normal)
-    if (isRaining) {
-      this.image.src = rainy_monkey;
-    } else if (showWinter) {
-      this.image.src = winter_monkey;
-    } else if (isHot) {
-      this.image.src = sunny_monkey;
-    } else if (isNightMode) {
-      this.image.src = sleepy_monkey;
-    } else {
-      this.image.src = normal_monkey;
-    }
 
     const msgWanOffline = this.config.text_wan_offline || `Moglie is stranded.<br>The WAN connection<br>has been lost!`;
     const msgArmedHome = this.config.text_armed_home || `Welcome Home!<br>The WAN is strong.<br>Tell me you brought<br>more bananas!`;
@@ -176,90 +153,52 @@ class MoglieBetaCard extends HTMLElement {
     const msgHot = this.config.text_hot || `It's sweltering out there!<br>I'm melting.<br>Pass me an ice cold banana.`;
     const msgCold = this.config.text_cold || `Brrr... it's freezing out here!<br>I'm wearing my warmest coat.<br>Bring me some hot cocoa!`;
 
+    // --- UNIFIED VISUAL & TEXT LOGIC ---
+    // Everything is handled together to prevent desyncing
+    this.content.className = "text-box";
+    this.image.className = "";
+
     if (!isWanActive) {
+      this.image.src = normal_monkey;
       this.content.innerHTML = msgWanOffline;
       this.content.className = "text-box status-warning";
       this.image.className = "status-grayscale";
       this.container.style.border = "2px solid var(--disabled-text-color)"; 
+
+    } else if (isRaining) {
+      this.image.src = rainy_monkey;
+      this.content.innerHTML = msgRain;
+      this.container.style.border = "2px solid var(--info-color, #2196F3)"; // Blue border for weather
+
+    } else if (showWinter) {
+      this.image.src = winter_monkey;
+      this.content.innerHTML = msgCold;
+      this.container.style.border = "2px solid var(--info-color, #00BCD4)"; // Cyan border for winter
+
+    } else if (isHot) {
+      this.image.src = sunny_monkey;
+      this.content.innerHTML = msgHot;
+      this.container.style.border = "2px solid var(--warning-color, #FF9800)"; // Orange border for heat
+
+    } else if (isNightMode) {
+      this.image.src = sleepy_monkey;
+      this.content.innerHTML = msgNight;
+      this.container.style.border = "2px solid #673AB7"; // Purple border for night
+
     } else if (isOffState) {
+      this.image.src = normal_monkey;
       this.content.innerHTML = msgDisarmed;
-      this.content.className = "text-box";
-      this.image.className = "";
       this.container.style.border = "2px solid var(--warning-color)"; 
+
     } else if (isHomeState) {
+      this.image.src = normal_monkey;
       this.content.innerHTML = msgArmedHome;
-      this.content.className = "text-box";
-      this.image.className = "";
       this.container.style.border = "2px solid var(--success-color)"; 
+
     } else {
-      if (isRaining) {
-        this.content.innerHTML = msgRain;
-      } else if (showWinter) {
-        this.content.innerHTML = msgCold;
-      } else if (isHot) {
-        this.content.innerHTML = msgHot;
-      } else if (isNightMode) {
-        this.content.innerHTML = msgNight;
-      } else {
-        this.content.innerHTML = msgArmedAway;
-      }
-      this.content.className = "text-box";
-      this.image.className = "";
+      this.image.src = normal_monkey;
+      this.content.innerHTML = msgArmedAway;
       this.container.style.border = "2px solid var(--error-color)"; 
     }
   }
 }
-
-// Renamed from moglie-ha-card to moglie-beta-card to prevent registry collisions
-customElements.define("moglie-beta-card", MoglieBetaCard);
-
-window.customCards = window.customCards || [];
-if (!window.customCards.some(card => card.type === 'moglie-beta-card')) {
-  window.customCards.push({
-    type: "moglie-beta-card",
-    name: "Moglie-Beta",
-    description: "WAN, Alarm, and Weather status monitoring with a friendly monkey (Beta)."
-  });
-}
-
-class MoglieBetaCardEditor extends HTMLElement {
-  setConfig(config) { this._config = config; }
-  set hass(hass) { this._hass = hass; this.renderForm(); }
-  
-  renderForm() {
-    if (!this._hass || !this._config) return;
-    if (!this.formElement) {
-      this.innerHTML = `<ha-form></ha-form>`;
-      this.formElement = this.querySelector("ha-form");
-      
-      this.formElement.schema = [
-        { name: "wan_entity", label: "WAN Status Entity", selector: { entity: {} } },
-        { name: "alarm_entity", label: "Alarm Control Panel", selector: { entity: { domain: "alarm_control_panel" } } },
-        { name: "weather_entity", label: "Weather Entity (For Rain & Temp)", selector: { entity: { domain: "weather" } } },
-        { name: "tap_action", label: "Tap Action", selector: { ui_action: {} } },
-        { name: "click_entity", label: "Legacy Click Entity (Fallback)", selector: { entity: {} } },
-        { name: "night_start", label: "Night Mode Start", selector: { time: {} } },
-        { name: "night_end", label: "Night Mode End", selector: { time: {} } },
-        { name: "text_wan_offline", label: "Custom Text: WAN Offline", selector: { text: { multiline: true } } },
-        { name: "text_armed_home", label: "Custom Text: Armed Home", selector: { text: { multiline: true } } },
-        { name: "text_disarmed", label: "Custom Text: Disarmed", selector: { text: { multiline: true } } },
-        { name: "text_armed_away", label: "Custom Text: Armed Away/Other", selector: { text: { multiline: true } } },
-        { name: "text_night", label: "Custom Text: Night Mode", selector: { text: { multiline: true } } },
-        { name: "text_rain", label: "Custom Text: Raining", selector: { text: { multiline: true } } },
-        { name: "text_hot", label: "Custom Text: Hot Weather (> 90)", selector: { text: { multiline: true } } },
-        { name: "text_cold", label: "Custom Text: Cold Weather (< 40 or Snow)", selector: { text: { multiline: true } } }
-      ];
-
-      this.formElement.addEventListener("value-changed", (ev) => {
-        const event = new CustomEvent("config-changed", {
-          detail: { config: ev.detail.value },
-          bubbles: true, composed: true,
-        });
-        this.dispatchEvent(event);
-      });
-    }
-    this.formElement.hass = this._hass;
-    this.formElement.data = this._config;
-  }
-}
-customElements.define("moglie-beta-card-editor", MoglieBetaCardEditor);
