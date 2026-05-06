@@ -64,10 +64,10 @@ class MoglieCard extends HTMLElement {
     const alarmEntity = hass.states[this.config.alarm_entity];
     const weatherEntity = hass.states[this.config.weather_entity];
 
-    // Safely parse states
-    const wanState = wanEntity ? wanEntity.state : 'unknown';
-    const alarmState = alarmEntity ? alarmEntity.state : 'unknown';
-    const weatherState = weatherEntity && weatherEntity.state ? weatherEntity.state.toLowerCase() : 'unknown';
+    // FIX: Safely parse states (Forces them to be Strings so numbers don't crash the card!)
+    const wanState = wanEntity && wanEntity.state !== undefined ? String(wanEntity.state).toLowerCase() : 'unknown';
+    const alarmState = alarmEntity && alarmEntity.state !== undefined ? String(alarmEntity.state).toLowerCase() : 'unknown';
+    const weatherState = weatherEntity && weatherEntity.state !== undefined ? String(weatherEntity.state).toLowerCase() : 'unknown';
     
     // 1. Identify Logic States
     const isWanActive = wanState === 'on' || wanState === 'connected'; 
@@ -151,7 +151,7 @@ class MoglieCard extends HTMLElement {
     } else if (showWinter) {
       this.updateUI(winter_monkey, quotes.cold, "2px solid #00BCD4");
     } else if (isHot) {
-      this.updateUI(summer_monkey, quotes.hot, "2px solid #FF9800"); // Fixed variable here
+      this.updateUI(summer_monkey, quotes.hot, "2px solid #FF9800"); 
     } else if (isOffState) {
       this.updateUI(normal_monkey, quotes.disarmed, "2px solid var(--warning-color, orange)");
     } else if (isHomeState) {
@@ -163,7 +163,7 @@ class MoglieCard extends HTMLElement {
 
   // DOM update helper function (Forced Image Re-render)
   updateUI(imageSrc, text, borderStyle) {
-    this.image.src = imageSrc; // Removes the safety check to force HA to reload the image
+    this.image.src = imageSrc; 
     this.content.innerHTML = text;
     this.container.style.border = borderStyle;
   }
