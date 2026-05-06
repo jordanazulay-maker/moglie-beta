@@ -8,7 +8,7 @@
   
   <p style="font-size: 1.2em; max-width: 600px; margin: 0 auto 20px auto; line-height: 1.5;">
     <b>You can put this primate right on your dashboard!</b><br>
-    Moglie monitors your WAN status and security state to let you know if the pack is safe or if he's lost his connection.
+    Moglie monitors your WAN status and security state to let you know if the pack is safe or if he's lost his connection.<br>You are on Moglie's Beta channel! The link below sends you to Moglies laitest stable release!
   </p>
 
   <a href="https://my.home-assistant.io/redirect/hacs_repository/?owner=jordanazulay-maker&repository=moglie-ha&category=plugin" target="_blank" rel="noreferrer">
