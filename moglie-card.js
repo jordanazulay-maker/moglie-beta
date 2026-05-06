@@ -6,11 +6,18 @@ import { sunny_monkey } from './sunny-monkey.js';
 import { sleepy_monkey } from './sleepy-monkey.js';
 
 class MoglieCard extends HTMLElement {
+  
+  // This provides the default YAML when adding the card from the UI picker
+  static getStubConfig() {
+    return {
+      wan_entity: "binary_sensor.wan_status",
+      alarm_entity: "alarm_control_panel.home_alarm",
+      weather_entity: "weather.home"
+    };
+  }
+
   // This runs when the card is added to the dashboard
   setConfig(config) {
-    if (!config.wan_entity || !config.alarm_entity || !config.weather_entity) {
-      throw new Error("You need to define wan_entity, alarm_entity, and weather_entity in your config");
-    }
     this.config = config;
 
     // Create the basic HTML structure if it doesn't exist
@@ -27,16 +34,54 @@ class MoglieCard extends HTMLElement {
       this.image = this.querySelector('#moglie-image');
       this.content = this.querySelector('#moglie-text');
     }
+
+    // Friendly warning instead of throwing an error (which breaks the card picker)
+    if (!config.wan_entity || !config.alarm_entity || !config.weather_entity) {
+      this.content.innerHTML = "⚠️ Please define wan_entity, alarm_entity, and weather_entity in the YAML config.";
+      this.container.style.border = "2px dashed red";
+    }
   }
 
   // This runs EVERY time a state changes in Home Assistant
   set hass(hass) {
-    if (!this.config) return;
+    if (!this.config || !this.config.wan_entity || !this.config.alarm_entity || !this.config.weather_entity) {
+      return; // Stop execution if config is incomplete
+    }
 
     // Grab the entities based on the user's config
     const wanEntity = hass.states[this.config.wan_entity];
     const alarmEntity = hass.states[this.config.alarm_entity];
     const weatherEntity = hass.states[this.config.weather_entity];
+
+    // Identify States & Attributes Safely
+    const wanState = wanEntity ? wanEntity.state : 'unknown';
+    const alarmState = alarmEntity ? alarmEntity.state : 'unknown';
+    const weatherState = weatherEntity ? weatherEntity.state.toLowerCase() : 'unknown';
+    
+    // Define the boolean variables used in logic
+    const isWanActive = wanState === 'on' || wanState === 'connected'; 
+    const isOffState = alarmState === 'disarmed';
+    const isHomeState = alarmState === 'armed_home';
+
+    // Night Mode logic (10 PM - 6 AM time-based)
+    const currentHour = new Date().getHours();
+    const isNightMode = currentHour >= 22 || currentHour <= 6; 
+
+    // Weather Triggers
+    const isRaining = ['rainy', 'pouring', 'lightning-rainy'].includes(weatherState);
+    const isSnowing = ['snowy', 'snowy-rainy', 'hail'].includes(weatherState);
+    
+    const temp = weatherEntity && weatherEntity.attributes ? parseFloat(weatherEntity.attributes.temperature) : null;
+    const isHot = temp !== null && temp > 90;
+    const isCold = temp !== null && temp < 40;
+    
+    // Winter Priority Logic
+    const showWinter = isSnowing || isCold;
+
+    // Status Key (Keep this to prevent flickering)
+    const statusKey = `${wanState}-${alarmState}-${isNightMode}-${isRaining}-${isHot}-${showWinter}`;
+    if (this._lastStatus === statusKey) return; 
+    this._lastStatus = statusKey;
 
     // Define the Moglie messages matching your README
     const msgWanOffline = "Moglie is stranded. The WAN connection has been lost!";
@@ -48,43 +93,12 @@ class MoglieCard extends HTMLElement {
     const msgArmedHome = "Welcome Home! The WAN is strong. Tell me you brought more bananas!";
     const msgArmedAway = "The rest of the primates are on patrol. I'll watch the trees until they get back!";
 
-    // Night Mode logic (10 PM - 6 AM time-based)
-    const currentHour = new Date().getHours();
-    const isNightMode = currentHour >= 22 || currentHour <= 6; 
-
-    // 1. Identify States & Attributes Safely (Prevents crashing if entity is missing)
-    const wanState = wanEntity ? wanEntity.state : 'unknown';
-    const alarmState = alarmEntity ? alarmEntity.state : 'unknown';
-    const weatherState = weatherEntity ? weatherEntity.state.toLowerCase() : 'unknown';
-    
-    // Define the missing boolean variables used in your logic!
-    const isWanActive = wanState === 'on' || wanState === 'connected'; 
-    const isOffState = alarmState === 'disarmed';
-    const isHomeState = alarmState === 'armed_home';
-
-    // 2. Weather Triggers (Expanded for 2026 HA states)
-    const isRaining = ['rainy', 'pouring', 'lightning-rainy'].includes(weatherState);
-    const isSnowing = ['snowy', 'snowy-rainy', 'hail'].includes(weatherState);
-    
-    const temp = weatherEntity && weatherEntity.attributes ? parseFloat(weatherEntity.attributes.temperature) : null;
-    const isHot = temp !== null && temp > 90;
-    const isCold = temp !== null && temp < 40;
-    
-    // Winter Priority Logic
-    const showWinter = isSnowing || isCold;
-
-    // 3. Status Key (Keep this to prevent flickering)
-    const statusKey = `${wanState}-${alarmState}-${isNightMode}-${isRaining}-${isHot}-${showWinter}`;
-    if (this._lastStatus === statusKey) return; 
-    this._lastStatus = statusKey;
-
-    // 4. THE MASTER PRIORITY LIST (WAN > WINTER > RAIN > HOT > NIGHT > ALARM)
-    // This order ensures he never says the banana line while wearing a parka.
-    
+    // Reset classes and styles on each update
     this.content.className = "text-box";
     this.image.className = "";
-    this.image.style.filter = "none"; // Clears grayscale if it was previously set
+    this.image.style.filter = "none"; 
 
+    // THE MASTER PRIORITY LIST
     if (!isWanActive) {
       this.image.src = normal_monkey;
       this.content.innerHTML = msgWanOffline;
@@ -94,7 +108,7 @@ class MoglieCard extends HTMLElement {
 
     } else if (showWinter) {
       this.image.src = winter_monkey;
-      this.content.innerHTML = msgCold; // Forces the Cocoa quote!
+      this.content.innerHTML = msgCold; 
       this.container.style.border = "2px solid #00BCD4"; 
 
     } else if (isRaining) {
@@ -129,21 +143,18 @@ class MoglieCard extends HTMLElement {
     }
   }
 
-  // Card size hint for lovelace
   getCardSize() {
     return 3;
   }
 }
 
-// Register the custom element with Home Assistant
 customElements.define('moglie-card', MoglieCard);
 
-// Register the card with the visual card picker
 window.customCards = window.customCards || [];
 window.customCards.push({
   type: "moglie-card",
   name: "Moglie HA Beta",
-  description: "Moglie monitors your WAN status and security state to let you know if the pack is safe.",
+  description: "Moglie monitors your WAN status and security state.",
   preview: true,
   documentationURL: "https://github.com/jordanazulay-maker/moglie-ha"
 });
