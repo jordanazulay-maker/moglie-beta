@@ -3,7 +3,7 @@
 import { normal_monkey } from './normal-monkey.js?v=1';
 import { winter_monkey } from './winter-monkey.js?v=1';
 import { rainy_monkey } from './rainy-monkey.js?v=1';
-import { sunny_monkey } from './summer-monkey.js?v=1';
+import { summer_monkey } from './summer-monkey.js?v=1';
 import { sleepy_monkey } from './sleepy-monkey.js?v=1';
 
 /* -------------------------------------------------------------------
