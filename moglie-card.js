@@ -74,7 +74,7 @@ class MoglieCard extends HTMLElement {
     const isOffState = alarmState === 'disarmed';
     const isHomeState = alarmState === 'armed_home';
 
-    // 2. Custom Night Mode Logic (Handles wrapping past midnight)
+    // 2. Custom Night Mode Logic
     const currentHour = new Date().getHours();
     const nightStart = parseInt(this.config.night_start) || 22;
     const nightEnd = parseInt(this.config.night_end) || 6;
@@ -86,7 +86,7 @@ class MoglieCard extends HTMLElement {
       isNightMode = currentHour >= nightStart && currentHour < nightEnd;
     }
 
-    // 3. Weather Triggers (Wide Net & Super-Safe Temp Checks)
+    // 3. Weather Triggers
     const isRaining = weatherState.includes('rain') || 
                       weatherState.includes('pour') || 
                       weatherState.includes('drizzle') || 
@@ -101,15 +101,23 @@ class MoglieCard extends HTMLElement {
       temp = parseFloat(weatherState);
     }
       
-    const unit = weatherEntity && weatherEntity.attributes && weatherEntity.attributes.temperature_unit 
-      ? weatherEntity.attributes.temperature_unit 
-      : 'F';
+    // FIX: Properly handle "°F" and "°C" symbols from Home Assistant
+    let unitStr = 'F';
+    if (weatherEntity && weatherEntity.attributes) {
+        if (weatherEntity.attributes.temperature_unit) {
+            unitStr = String(weatherEntity.attributes.temperature_unit);
+        } else if (weatherEntity.attributes.unit_of_measurement) {
+            unitStr = String(weatherEntity.attributes.unit_of_measurement);
+        }
+    }
+    const isF = unitStr.toUpperCase().includes('F');
+    const isC = unitStr.toUpperCase().includes('C');
       
     const isSnowing = ['snowy', 'snowy-rainy', 'hail'].includes(weatherState);
     const isSunny = weatherState.includes('sunny') || weatherState.includes('clear');
     
-    const isHot = isSunny || (temp !== null && ((unit === 'F' && temp >= 80) || (unit === 'C' && temp >= 27)));
-    const isCold = temp !== null && ((unit === 'F' && temp < 50) || (unit === 'C' && temp < 10));
+    const isHot = isSunny || (temp !== null && ((isF && temp >= 80) || (isC && temp >= 27)));
+    const isCold = temp !== null && ((isF && temp < 50) || (isC && temp < 10));
     const showWinter = isSnowing || isCold;
 
     const statusKey = `${wanState}-${alarmState}-${isNightMode}-${isRaining}-${isHot}-${showWinter}`;
@@ -131,7 +139,7 @@ class MoglieCard extends HTMLElement {
     this.content.className = "text-box";
     this.image.style.filter = "none"; 
 
-    // 5. THE MASTER PRIORITY LIST (WAN > NIGHT > RAIN > WINTER > HOT > ALARM)
+    // 5. THE MASTER PRIORITY LIST
     if (!isWanActive) {
       this.updateUI(normal_monkey, quotes.offline, "2px solid var(--disabled-text-color, gray)");
       this.content.classList.add("status-warning");
