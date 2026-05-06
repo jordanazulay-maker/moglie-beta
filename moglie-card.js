@@ -1,9 +1,9 @@
-// 1. Import your base64 images (The REAL fix is back!)
-import { normal_monkey } from './normal-monkey.js?v=3';
-import { winter_monkey } from './winter-monkey.js?v=3';
-import { rainy_monkey } from './rainy-monkey.js?v=3';
-import { summer_monkey } from './summer-monkey.js?v=3';
-import { sleepy_monkey } from './sleepy-monkey.js?v=3';
+// 1. Import your base64 images with Cache Busters (?v=4)
+import { normal_monkey } from './normal-monkey.js?v=4';
+import { winter_monkey } from './winter-monkey.js?v=4';
+import { rainy_monkey } from './rainy-monkey.js?v=4';
+import { summer_monkey } from './summer-monkey.js?v=4';
+import { sleepy_monkey } from './sleepy-monkey.js?v=4';
 
 /* -------------------------------------------------------------------
    MAIN CARD COMPONENT
@@ -164,7 +164,7 @@ customElements.define('moglie-card', MoglieCard);
 
 
 /* -------------------------------------------------------------------
-   VISUAL EDITOR COMPONENT (GUI)
+   VISUAL EDITOR COMPONENT (GUI) WITH ENTITY SELECTORS
 ------------------------------------------------------------------- */
 class MoglieCardEditor extends HTMLElement {
   
@@ -178,18 +178,36 @@ class MoglieCardEditor extends HTMLElement {
 
   set hass(hass) {
     this._hass = hass;
+    if (this._rendered) {
+      // Update entity pickers with current HASS object
+      const pickers = this.querySelectorAll("ha-entity-picker");
+      pickers.forEach(picker => {
+        picker.hass = hass;
+      });
+    }
   }
 
   render() {
     this.innerHTML = `
-      <div style="display: flex; flex-direction: column; gap: 24px; padding: 8px 0;">
+      <div style="display: flex; flex-direction: column; gap: 24px; padding: 16px 0;">
         
         <div style="display: flex; flex-direction: column; gap: 12px;">
           <h3 style="margin: 0; color: var(--primary-text-color);">Entity Configuration</h3>
-          <p style="margin: 0; color: var(--secondary-text-color); font-size: 0.9em;">Type the exact entity ID (e.g., weather.home).</p>
-          <ha-textfield id="wan_entity" label="WAN Entity ID"></ha-textfield>
-          <ha-textfield id="alarm_entity" label="Alarm Entity ID"></ha-textfield>
-          <ha-textfield id="weather_entity" label="Weather Entity ID"></ha-textfield>
+          
+          <div>
+            <label style="color: var(--secondary-text-color); font-size: 0.9em;">WAN Entity</label>
+            <ha-entity-picker id="wan_entity" label="Select WAN Sensor" allow-custom-entity></ha-entity-picker>
+          </div>
+
+          <div>
+            <label style="color: var(--secondary-text-color); font-size: 0.9em;">Alarm Control Panel</label>
+            <ha-entity-picker id="alarm_entity" label="Select Alarm Panel" domain-filter="alarm_control_panel" allow-custom-entity></ha-entity-picker>
+          </div>
+
+          <div>
+            <label style="color: var(--secondary-text-color); font-size: 0.9em;">Weather Entity</label>
+            <ha-entity-picker id="weather_entity" label="Select Weather" domain-filter="weather" allow-custom-entity></ha-entity-picker>
+          </div>
         </div>
 
         <div style="display: flex; flex-direction: column; gap: 12px;">
@@ -202,27 +220,34 @@ class MoglieCardEditor extends HTMLElement {
 
         <div style="display: flex; flex-direction: column; gap: 12px;">
           <h3 style="margin: 0; color: var(--primary-text-color);">Custom Quotes</h3>
-          <p style="margin: 0; color: var(--secondary-text-color); font-size: 0.9em;">Leave blank for default phrases.</p>
-          <ha-textfield id="quote_offline" label="WAN Offline"></ha-textfield>
-          <ha-textfield id="quote_disarmed" label="Disarmed"></ha-textfield>
-          <ha-textfield id="quote_armed_home" label="Armed Home"></ha-textfield>
-          <ha-textfield id="quote_armed_away" label="Armed Away"></ha-textfield>
-          <ha-textfield id="quote_night" label="Night Mode"></ha-textfield>
+          <ha-textfield id="quote_offline" label="WAN Offline" style="width: 100%;"></ha-textfield>
+          <ha-textfield id="quote_disarmed" label="Disarmed" style="width: 100%;"></ha-textfield>
+          <ha-textfield id="quote_armed_home" label="Armed Home" style="width: 100%;"></ha-textfield>
+          <ha-textfield id="quote_armed_away" label="Armed Away" style="width: 100%;"></ha-textfield>
+          <ha-textfield id="quote_night" label="Night Mode" style="width: 100%;"></ha-textfield>
         </div>
 
       </div>
     `;
 
-    const inputs = [
-      'wan_entity', 'alarm_entity', 'weather_entity', 'night_start', 'night_end', 
-      'quote_offline', 'quote_disarmed', 'quote_armed_home', 'quote_armed_away', 'quote_night'
-    ];
+    // Initialize values and listeners for entity pickers
+    const entityFields = ['wan_entity', 'alarm_entity', 'weather_entity'];
+    entityFields.forEach(id => {
+      const picker = this.querySelector(`#${id}`);
+      if (picker) {
+        picker.value = this._config[id] || '';
+        picker.hass = this._hass;
+        picker.addEventListener('value-changed', (e) => this.updateConfig(id, e.detail.value));
+      }
+    });
 
-    inputs.forEach((id) => {
-      const el = this.querySelector(`#${id}`);
-      if (el) {
-        el.value = this._config[id] !== undefined ? this._config[id] : '';
-        el.addEventListener('input', (e) => this.updateConfig(id, e.target.value));
+    // Initialize values and listeners for text/number fields
+    const textFields = ['night_start', 'night_end', 'quote_offline', 'quote_disarmed', 'quote_armed_home', 'quote_armed_away', 'quote_night'];
+    textFields.forEach(id => {
+      const field = this.querySelector(`#${id}`);
+      if (field) {
+        field.value = this._config[id] !== undefined ? this._config[id] : '';
+        field.addEventListener('input', (e) => this.updateConfig(id, e.target.value));
       }
     });
   }
