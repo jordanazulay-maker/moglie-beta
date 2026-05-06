@@ -10,12 +10,10 @@ import { sleepy_monkey } from './sleepy-monkey.js';
 ------------------------------------------------------------------- */
 class MoglieCard extends HTMLElement {
   
-  // Connects the visual editor to the card
   static getConfigElement() {
     return document.createElement("moglie-card-editor");
   }
 
-  // Provides the default YAML when adding the card from the UI picker
   static getStubConfig() {
     return {
       wan_entity: "",
@@ -26,11 +24,9 @@ class MoglieCard extends HTMLElement {
     };
   }
 
-  // Runs once when the card is added to the dashboard
   setConfig(config) {
     this.config = config;
 
-    // Build the DOM structure only if it doesn't already exist
     if (!this.content) {
       this.innerHTML = `
         <ha-card>
@@ -44,9 +40,8 @@ class MoglieCard extends HTMLElement {
       this.image = this.querySelector('#moglie-image');
       this.content = this.querySelector('#moglie-text');
 
-      // Click event for native More Info dialog
       this.container.addEventListener('click', () => {
-        if (!this.config?.alarm_entity) return;
+        if (!this.config || !this.config.alarm_entity) return;
         this.dispatchEvent(new CustomEvent('hass-more-info', {
           bubbles: true,
           composed: true,
@@ -61,18 +56,17 @@ class MoglieCard extends HTMLElement {
     }
   }
 
-  // Runs every time a state changes in Home Assistant
   set hass(hass) {
-    if (!this.config?.wan_entity || !this.config?.alarm_entity || !this.config?.weather_entity) return;
+    if (!this.config || !this.config.wan_entity || !this.config.alarm_entity || !this.config.weather_entity) return;
 
-    // Grab entities cleanly
     const wanEntity = hass.states[this.config.wan_entity];
     const alarmEntity = hass.states[this.config.alarm_entity];
     const weatherEntity = hass.states[this.config.weather_entity];
 
-    const wanState = wanEntity?.state || 'unknown';
-    const alarmState = alarmEntity?.state || 'unknown';
-    const weatherState = weatherEntity?.state?.toLowerCase() || 'unknown';
+    // Safely parse states
+    const wanState = wanEntity ? wanEntity.state : 'unknown';
+    const alarmState = alarmEntity ? alarmEntity.state : 'unknown';
+    const weatherState = weatherEntity && weatherEntity.state ? weatherEntity.state.toLowerCase() : 'unknown';
     
     // 1. Identify Logic States
     const isWanActive = wanState === 'on' || wanState === 'connected'; 
@@ -84,30 +78,34 @@ class MoglieCard extends HTMLElement {
     const nightStart = parseInt(this.config.night_start) || 22;
     const nightEnd = parseInt(this.config.night_end) || 6;
     
-    const isNightMode = nightStart > nightEnd 
-      ? (currentHour >= nightStart || currentHour < nightEnd) 
-      : (currentHour >= nightStart && currentHour < nightEnd);
+    let isNightMode = false;
+    if (nightStart > nightEnd) {
+      isNightMode = currentHour >= nightStart || currentHour < nightEnd;
+    } else {
+      isNightMode = currentHour >= nightStart && currentHour < nightEnd;
+    }
 
-    // 3. Weather Triggers (The "Wide Net" Fix)
-    // Checks if the state contains any of these words, regardless of the exact string
+    // 3. Weather Triggers (Wide Net for Rain)
     const isRaining = weatherState.includes('rain') || 
                       weatherState.includes('pour') || 
                       weatherState.includes('drizzle') || 
                       weatherState.includes('shower') || 
                       weatherState.includes('storm');
 
-    const temp = weatherEntity?.attributes?.temperature ? parseFloat(weatherEntity.attributes.temperature) : null;
+    const temp = weatherEntity && weatherEntity.attributes && weatherEntity.attributes.temperature 
+      ? parseFloat(weatherEntity.attributes.temperature) 
+      : null;
+      
     const isSnowing = ['snowy', 'snowy-rainy', 'hail'].includes(weatherState);
     const isHot = temp !== null && temp > 90;
     const isCold = temp !== null && temp < 40;
     const showWinter = isSnowing || isCold;
 
-    // Efficiency: Status Key (Prevents expensive DOM updates if the visual state hasn't changed)
     const statusKey = `${wanState}-${alarmState}-${isNightMode}-${isRaining}-${isHot}-${showWinter}`;
     if (this._lastStatus === statusKey) return; 
     this._lastStatus = statusKey;
 
-    // 4. Custom Quotes Dictionary (Falls back to defaults)
+    // 4. Custom Quotes Dictionary
     const quotes = {
       offline: this.config.quote_offline || "Moglie is stranded. The WAN connection has been lost!",
       cold: this.config.quote_cold || "Brrr! It's freezing out there!",
@@ -119,11 +117,10 @@ class MoglieCard extends HTMLElement {
       armedAway: this.config.quote_armed_away || "The rest of the primates are on patrol. I'll watch the trees until they get back!"
     };
 
-    // Reset baseline classes and styles on update
     this.content.className = "text-box";
     this.image.style.filter = "none"; 
 
-    // 5. THE MASTER PRIORITY LIST (Rain beats Winter now)
+    // 5. THE MASTER PRIORITY LIST (Rain beats Winter)
     if (!isWanActive) {
       this.updateUI(normal_monkey, quotes.offline, "2px solid var(--disabled-text-color, gray)");
       this.content.classList.add("status-warning");
@@ -145,5 +142,101 @@ class MoglieCard extends HTMLElement {
     }
   }
 
-  // DOM update helper function to keep things clean
   updateUI(imageSrc, text, borderStyle) {
+    if (this.image.src !== imageSrc) this.image.src = imageSrc;
+    this.content.innerHTML = text;
+    this.container.style.border = borderStyle;
+  }
+
+  getCardSize() { return 3; }
+}
+customElements.define('moglie-card', MoglieCard);
+
+
+/* -------------------------------------------------------------------
+   VISUAL EDITOR COMPONENT (GUI)
+------------------------------------------------------------------- */
+class MoglieCardEditor extends HTMLElement {
+  
+  setConfig(config) {
+    this._config = config;
+    if (!this._rendered) {
+      this.render();
+      this._rendered = true;
+    }
+  }
+
+  set hass(hass) {
+    this._hass = hass;
+  }
+
+  render() {
+    this.innerHTML = `
+      <div style="display: flex; flex-direction: column; gap: 24px; padding: 8px 0;">
+        
+        <div style="display: flex; flex-direction: column; gap: 12px;">
+          <h3 style="margin: 0; color: var(--primary-text-color);">Entity Configuration</h3>
+          <p style="margin: 0; color: var(--secondary-text-color); font-size: 0.9em;">Type the exact entity ID (e.g., weather.home).</p>
+          <ha-textfield id="wan_entity" label="WAN Entity ID"></ha-textfield>
+          <ha-textfield id="alarm_entity" label="Alarm Entity ID"></ha-textfield>
+          <ha-textfield id="weather_entity" label="Weather Entity ID"></ha-textfield>
+        </div>
+
+        <div style="display: flex; flex-direction: column; gap: 12px;">
+          <h3 style="margin: 0; color: var(--primary-text-color);">Night Mode Schedule</h3>
+          <div style="display: flex; gap: 16px;">
+            <ha-textfield id="night_start" label="Start Hour (0-23)" type="number" style="flex: 1;"></ha-textfield>
+            <ha-textfield id="night_end" label="End Hour (0-23)" type="number" style="flex: 1;"></ha-textfield>
+          </div>
+        </div>
+
+        <div style="display: flex; flex-direction: column; gap: 12px;">
+          <h3 style="margin: 0; color: var(--primary-text-color);">Custom Quotes</h3>
+          <p style="margin: 0; color: var(--secondary-text-color); font-size: 0.9em;">Leave blank for default phrases.</p>
+          <ha-textfield id="quote_offline" label="WAN Offline"></ha-textfield>
+          <ha-textfield id="quote_disarmed" label="Disarmed"></ha-textfield>
+          <ha-textfield id="quote_armed_home" label="Armed Home"></ha-textfield>
+          <ha-textfield id="quote_armed_away" label="Armed Away"></ha-textfield>
+          <ha-textfield id="quote_night" label="Night Mode"></ha-textfield>
+        </div>
+
+      </div>
+    `;
+
+    const inputs = [
+      'wan_entity', 'alarm_entity', 'weather_entity', 'night_start', 'night_end', 
+      'quote_offline', 'quote_disarmed', 'quote_armed_home', 'quote_armed_away', 'quote_night'
+    ];
+
+    inputs.forEach((id) => {
+      const el = this.querySelector(`#${id}`);
+      if (el) {
+        el.value = this._config[id] !== undefined ? this._config[id] : '';
+        el.addEventListener('input', (e) => this.updateConfig(id, e.target.value));
+      }
+    });
+  }
+
+  updateConfig(key, value) {
+    if (!this._config || this._config[key] === value) return;
+    const newConfig = { ...this._config, [key]: value };
+    this.dispatchEvent(new CustomEvent("config-changed", {
+      detail: { config: newConfig },
+      bubbles: true,
+      composed: true,
+    }));
+  }
+}
+customElements.define("moglie-card-editor", MoglieCardEditor);
+
+/* -------------------------------------------------------------------
+   CARD PICKER REGISTRATION
+------------------------------------------------------------------- */
+window.customCards = window.customCards || [];
+window.customCards.push({
+  type: "moglie-card",
+  name: "Moglie HA Beta",
+  description: "Moglie monitors your WAN status and security state.",
+  preview: true,
+  documentationURL: "https://github.com/jordanazulay-maker/moglie-ha"
+});
