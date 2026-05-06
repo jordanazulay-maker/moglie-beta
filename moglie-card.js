@@ -1,9 +1,10 @@
-// 1. Import your base64 images
-import { normal_monkey } from './normal-monkey.js';
-import { winter_monkey } from './winter-monkey.js';
-import { rainy_monkey } from './rainy-monkey.js';
-import { sunny_monkey } from './sunny-monkey.js';
-import { sleepy_monkey } from './sleepy-monkey.js';
+// 1. Import your base64 images with Cache Busters (?v=1)
+// If you ever update the images again, just change this to ?v=2, ?v=3, etc.
+import { normal_monkey } from './normal-monkey.js?v=1';
+import { winter_monkey } from './winter-monkey.js?v=1';
+import { rainy_monkey } from './rainy-monkey.js?v=1';
+import { sunny_monkey } from './sunny-monkey.js?v=1';
+import { sleepy_monkey } from './sleepy-monkey.js?v=1';
 
 /* -------------------------------------------------------------------
    MAIN CARD COMPONENT
@@ -74,7 +75,7 @@ class MoglieCard extends HTMLElement {
     const isOffState = alarmState === 'disarmed';
     const isHomeState = alarmState === 'armed_home';
 
-    // 2. Custom Night Mode Logic
+    // 2. Custom Night Mode Logic (Handles wrapping past midnight)
     const currentHour = new Date().getHours();
     const nightStart = parseInt(this.config.night_start) || 22;
     const nightEnd = parseInt(this.config.night_end) || 6;
@@ -86,7 +87,7 @@ class MoglieCard extends HTMLElement {
       isNightMode = currentHour >= nightStart && currentHour < nightEnd;
     }
 
-    // 3. Weather Triggers
+    // 3. Weather Triggers (Wide Net & Super-Safe Temp Checks)
     const isRaining = weatherState.includes('rain') || 
                       weatherState.includes('pour') || 
                       weatherState.includes('drizzle') || 
@@ -101,7 +102,7 @@ class MoglieCard extends HTMLElement {
       temp = parseFloat(weatherState);
     }
       
-    // FIX: Properly handle "°F" and "°C" symbols from Home Assistant
+    // Safely handle "°F" and "°C" symbols from Home Assistant
     let unitStr = 'F';
     if (weatherEntity && weatherEntity.attributes) {
         if (weatherEntity.attributes.temperature_unit) {
@@ -139,7 +140,7 @@ class MoglieCard extends HTMLElement {
     this.content.className = "text-box";
     this.image.style.filter = "none"; 
 
-    // 5. THE MASTER PRIORITY LIST
+    // 5. THE MASTER PRIORITY LIST (WAN > NIGHT > RAIN > WINTER > HOT > ALARM)
     if (!isWanActive) {
       this.updateUI(normal_monkey, quotes.offline, "2px solid var(--disabled-text-color, gray)");
       this.content.classList.add("status-warning");
@@ -161,8 +162,9 @@ class MoglieCard extends HTMLElement {
     }
   }
 
+  // DOM update helper function (Forced Image Re-render)
   updateUI(imageSrc, text, borderStyle) {
-    if (this.image.src !== imageSrc) this.image.src = imageSrc;
+    this.image.src = imageSrc; // Removes the safety check to force HA to reload the image
     this.content.innerHTML = text;
     this.container.style.border = borderStyle;
   }
