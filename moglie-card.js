@@ -69,7 +69,9 @@ class MoglieCard extends HTMLElement {
     
     const isWanActive = wanState === 'on' || wanState === 'connected'; 
     const isOffState = alarmState === 'disarmed';
-    const isHomeState = alarmState === 'armed_home';
+    
+    // FIX: Added broader check for "Armed Home" variations
+    const isHomeState = alarmState === 'armed_home' || alarmState === 'home' || alarmState === 'armed_night';
 
     const currentHour = new Date().getHours();
     const nightStart = parseInt(this.config.night_start) || 22;
@@ -164,88 +166,66 @@ customElements.define('moglie-card', MoglieCard);
 
 
 /* -------------------------------------------------------------------
-   VISUAL EDITOR COMPONENT (GUI) WITH TEXT FIELDS
+   VISUAL EDITOR COMPONENT (GUI)
 ------------------------------------------------------------------- */
 class MoglieCardEditor extends HTMLElement {
   
   setConfig(config) {
     this._config = config;
-    if (!this._rendered) {
-      this.render();
-      this._rendered = true;
-    }
+    this.render();
   }
 
   set hass(hass) {
     this._hass = hass;
-    // Updated set hass to pass the hass object to the ha-textfields
-    if (this._rendered) {
-      const textfields = this.querySelectorAll("ha-textfield");
-      textfields.forEach(field => {
-        field.hass = hass;
-      });
-    }
   }
 
   render() {
+    if (!this._config) return;
+
+    // FIX: Rebuilt UI with direct .value mapping and explicit event listeners
     this.innerHTML = `
       <div style="display: flex; flex-direction: column; gap: 24px; padding: 16px 0;">
         
         <div style="display: flex; flex-direction: column; gap: 12px;">
           <h3 style="margin: 0; color: var(--primary-text-color);">Entity Configuration</h3>
-          
-          <div>
-            <ha-textfield id="wan_entity" label="WAN Entity ID (e.g., binary_sensor.wan)" style="width: 100%;"></ha-textfield>
-          </div>
-
-          <div>
-            <ha-textfield id="alarm_entity" label="Alarm Entity ID (e.g., alarm_control_panel.home)" style="width: 100%;"></ha-textfield>
-          </div>
-
-          <div>
-            <ha-textfield id="weather_entity" label="Weather Entity ID (e.g., weather.home)" style="width: 100%;"></ha-textfield>
-          </div>
+          <ha-textfield id="wan_entity" label="WAN Entity ID" .value="${this._config.wan_entity || ''}" style="width: 100%;"></ha-textfield>
+          <ha-textfield id="alarm_entity" label="Alarm Entity ID" .value="${this._config.alarm_entity || ''}" style="width: 100%;"></ha-textfield>
+          <ha-textfield id="weather_entity" label="Weather Entity ID" .value="${this._config.weather_entity || ''}" style="width: 100%;"></ha-textfield>
         </div>
 
         <div style="display: flex; flex-direction: column; gap: 12px;">
           <h3 style="margin: 0; color: var(--primary-text-color);">Night Mode Schedule</h3>
           <div style="display: flex; gap: 16px;">
-            <ha-textfield id="night_start" label="Start Hour (0-23)" type="number" style="flex: 1;"></ha-textfield>
-            <ha-textfield id="night_end" label="End Hour (0-23)" type="number" style="flex: 1;"></ha-textfield>
+            <ha-textfield id="night_start" label="Start Hour (0-23)" type="number" .value="${this._config.night_start || 22}" style="flex: 1;"></ha-textfield>
+            <ha-textfield id="night_end" label="End Hour (0-23)" type="number" .value="${this._config.night_end || 6}" style="flex: 1;"></ha-textfield>
           </div>
         </div>
 
         <div style="display: flex; flex-direction: column; gap: 12px;">
           <h3 style="margin: 0; color: var(--primary-text-color);">Custom Quotes</h3>
-          <ha-textfield id="quote_offline" label="WAN Offline" style="width: 100%;"></ha-textfield>
-          <ha-textfield id="quote_disarmed" label="Disarmed" style="width: 100%;"></ha-textfield>
-          <ha-textfield id="quote_armed_home" label="Armed Home" style="width: 100%;"></ha-textfield>
-          <ha-textfield id="quote_armed_away" label="Armed Away" style="width: 100%;"></ha-textfield>
-          <ha-textfield id="quote_night" label="Night Mode" style="width: 100%;"></ha-textfield>
+          <ha-textfield id="quote_offline" label="WAN Offline" .value="${this._config.quote_offline || ''}" style="width: 100%;"></ha-textfield>
+          <ha-textfield id="quote_disarmed" label="Disarmed" .value="${this._config.quote_disarmed || ''}" style="width: 100%;"></ha-textfield>
+          <ha-textfield id="quote_armed_home" label="Armed Home" .value="${this._config.quote_armed_home || ''}" style="width: 100%;"></ha-textfield>
+          <ha-textfield id="quote_armed_away" label="Armed Away" .value="${this._config.quote_armed_away || ''}" style="width: 100%;"></ha-textfield>
+          <ha-textfield id="quote_night" label="Night Mode" .value="${this._config.quote_night || ''}" style="width: 100%;"></ha-textfield>
         </div>
 
       </div>
     `;
 
-    // Updated input list to include the entity text fields
-    const inputs = [
-      'wan_entity', 'alarm_entity', 'weather_entity', 'night_start', 'night_end', 
-      'quote_offline', 'quote_disarmed', 'quote_armed_home', 'quote_armed_away', 'quote_night'
-    ];
-
-    inputs.forEach((id) => {
-      const el = this.querySelector(`#${id}`);
-      if (el) {
-        el.value = this._config[id] !== undefined ? this._config[id] : '';
-        // ha-textfield uses 'input' or 'change' events for value updates
-        el.addEventListener('input', (e) => this.updateConfig(id, e.target.value));
-      }
+    // Attach listeners to all text fields
+    this.querySelectorAll("ha-textfield").forEach((el) => {
+      el.addEventListener('input', (ev) => this._valueChanged(ev));
     });
   }
 
-  updateConfig(key, value) {
-    if (!this._config || this._config[key] === value) return;
-    const newConfig = { ...this._config, [key]: value };
+  _valueChanged(ev) {
+    if (!this._config) return;
+    const target = ev.target;
+    if (this._config[target.id] === target.value) return;
+
+    const newConfig = { ...this._config, [target.id]: target.value };
+    
     this.dispatchEvent(new CustomEvent("config-changed", {
       detail: { config: newConfig },
       bubbles: true,
