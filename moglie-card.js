@@ -85,7 +85,7 @@ class MoglieCard extends HTMLElement {
       isNightMode = currentHour >= nightStart && currentHour < nightEnd;
     }
 
-    // 3. Weather Triggers (Wide Net for Rain)
+    // 3. Weather Triggers (Wide Net for Rain & Safe Temp Checks)
     const isRaining = weatherState.includes('rain') || 
                       weatherState.includes('pour') || 
                       weatherState.includes('drizzle') || 
@@ -96,9 +96,16 @@ class MoglieCard extends HTMLElement {
       ? parseFloat(weatherEntity.attributes.temperature) 
       : null;
       
+    const unit = weatherEntity && weatherEntity.attributes && weatherEntity.attributes.temperature_unit 
+      ? weatherEntity.attributes.temperature_unit 
+      : 'F';
+      
     const isSnowing = ['snowy', 'snowy-rainy', 'hail'].includes(weatherState);
-    const isHot = temp !== null && temp > 90;
-    const isCold = temp !== null && temp < 40;
+    
+    const isSunny = weatherState.includes('sunny') || weatherState.includes('clear');
+    const isHot = isSunny || (temp !== null && ((unit === 'F' && temp >= 80) || (unit === 'C' && temp >= 27)));
+    const isCold = temp !== null && ((unit === 'F' && temp < 50) || (unit === 'C' && temp < 10));
+    
     const showWinter = isSnowing || isCold;
 
     const statusKey = `${wanState}-${alarmState}-${isNightMode}-${isRaining}-${isHot}-${showWinter}`;
@@ -120,19 +127,19 @@ class MoglieCard extends HTMLElement {
     this.content.className = "text-box";
     this.image.style.filter = "none"; 
 
-    // 5. THE MASTER PRIORITY LIST (Rain beats Winter)
+    // 5. THE MASTER PRIORITY LIST (Night mode now beats all weather!)
     if (!isWanActive) {
       this.updateUI(normal_monkey, quotes.offline, "2px solid var(--disabled-text-color, gray)");
       this.content.classList.add("status-warning");
       this.image.style.filter = "grayscale(100%)";
+    } else if (isNightMode) {
+      this.updateUI(sleepy_monkey, quotes.night, "2px solid #673AB7");
     } else if (isRaining) {
       this.updateUI(rainy_monkey, quotes.rain, "2px solid #2196F3");
     } else if (showWinter) {
       this.updateUI(winter_monkey, quotes.cold, "2px solid #00BCD4");
     } else if (isHot) {
       this.updateUI(sunny_monkey, quotes.hot, "2px solid #FF9800");
-    } else if (isNightMode) {
-      this.updateUI(sleepy_monkey, quotes.night, "2px solid #673AB7");
     } else if (isOffState) {
       this.updateUI(normal_monkey, quotes.disarmed, "2px solid var(--warning-color, orange)");
     } else if (isHomeState) {
