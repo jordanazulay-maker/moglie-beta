@@ -1,5 +1,4 @@
 // 1. Import your base64 images with Cache Busters (?v=1)
-// If you ever update the images again, just change this to ?v=2, ?v=3, etc.
 import { normal_monkey } from './normal-monkey.js?v=1';
 import { winter_monkey } from './winter-monkey.js?v=1';
 import { rainy_monkey } from './rainy-monkey.js?v=1';
@@ -152,7 +151,7 @@ class MoglieCard extends HTMLElement {
     } else if (showWinter) {
       this.updateUI(winter_monkey, quotes.cold, "2px solid #00BCD4");
     } else if (isHot) {
-      this.updateUI(sunny_monkey, quotes.hot, "2px solid #FF9800");
+      this.updateUI(summer_monkey, quotes.hot, "2px solid #FF9800"); // Fixed variable here
     } else if (isOffState) {
       this.updateUI(normal_monkey, quotes.disarmed, "2px solid var(--warning-color, orange)");
     } else if (isHomeState) {
