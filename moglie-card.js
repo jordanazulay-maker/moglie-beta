@@ -63,15 +63,29 @@ class MoglieCard extends HTMLElement {
     const alarmEntity = hass.states[this.config.alarm_entity];
     const weatherEntity = hass.states[this.config.weather_entity];
 
-    const wanState = wanEntity && wanEntity.state !== undefined ? String(wanEntity.state).toLowerCase() : 'unknown';
-    const alarmState = alarmEntity && alarmEntity.state !== undefined ? String(alarmEntity.state).toLowerCase() : 'unknown';
-    const weatherState = weatherEntity && weatherEntity.state !== undefined ? String(weatherEntity.state).toLowerCase() : 'unknown';
+    // FOOLPROOF CHECK: If the entity doesn't exist, tell the user instead of going to Away mode
+    if (!wanEntity || !alarmEntity || !weatherEntity) {
+      let missing = [];
+      if (!wanEntity) missing.push(this.config.wan_entity);
+      if (!alarmEntity) missing.push(this.config.alarm_entity);
+      if (!weatherEntity) missing.push(this.config.weather_entity);
+      
+      this.content.innerHTML = `⚠️ Cannot find entity: <b>${missing.join(', ')}</b>. Please check your spelling.`;
+      this.container.style.border = "2px dashed var(--error-color, red)";
+      this.image.src = normal_monkey;
+      this.image.style.filter = "grayscale(100%)";
+      return;
+    }
+
+    const wanState = String(wanEntity.state).toLowerCase();
+    const alarmState = String(alarmEntity.state).toLowerCase();
+    const weatherState = String(weatherEntity.state).toLowerCase();
     
-    const isWanActive = wanState === 'on' || wanState === 'connected'; 
-    const isOffState = alarmState === 'disarmed';
+    const isWanActive = wanState === 'on' || wanState === 'connected' || wanState === 'true'; 
     
-    // Check for standard HA states + variations with underscores or spaces
-    const isHomeState = alarmState === 'armed_home' || alarmState === 'home' || alarmState === 'armed_night' || alarmState === 'armed home';
+    // Broadened logic checks to catch virtually any alarm system's naming convention
+    const isOffState = alarmState.includes('disarmed') || alarmState === 'off';
+    const isHomeState = alarmState.includes('home') || alarmState.includes('night');
 
     const currentHour = new Date().getHours();
     const nightStart = parseInt(this.config.night_start) || 22;
@@ -91,14 +105,14 @@ class MoglieCard extends HTMLElement {
                       weatherState.includes('storm');
 
     let temp = null;
-    if (weatherEntity && weatherEntity.attributes && weatherEntity.attributes.temperature !== undefined) {
+    if (weatherEntity.attributes && weatherEntity.attributes.temperature !== undefined) {
       temp = parseFloat(weatherEntity.attributes.temperature);
     } else if (!isNaN(parseFloat(weatherState))) {
       temp = parseFloat(weatherState);
     }
       
     let unitStr = 'F';
-    if (weatherEntity && weatherEntity.attributes) {
+    if (weatherEntity.attributes) {
         if (weatherEntity.attributes.temperature_unit) {
             unitStr = String(weatherEntity.attributes.temperature_unit);
         } else if (weatherEntity.attributes.unit_of_measurement) {
@@ -172,13 +186,10 @@ class MoglieCardEditor extends HTMLElement {
   
   setConfig(config) {
     this._config = config;
-    
-    // Only build the HTML once to prevent text boxes from disappearing
     if (!this._rendered) {
       this.render();
       this._rendered = true;
     } else {
-      // If it already exists, just update the values
       this.updateValues();
     }
   }
@@ -190,31 +201,51 @@ class MoglieCardEditor extends HTMLElement {
   render() {
     if (!this._config) return;
 
+    // Standard HTML styling to make inputs look like native HA components
+    const inputStyle = "width: 100%; padding: 8px; margin-top: 4px; border: 1px solid var(--divider-color, #ccc); border-radius: 4px; background: var(--card-background-color, #fff); color: var(--primary-text-color, #000); box-sizing: border-box; font-family: inherit;";
+    const labelStyle = "font-size: 14px; font-weight: 500; color: var(--primary-text-color);";
+
+    // Replaced <ha-textfield> with 100% reliable standard HTML <input> elements
     this.innerHTML = `
-      <div style="display: flex; flex-direction: column; gap: 24px; padding: 16px 0;">
+      <div style="display: flex; flex-direction: column; gap: 20px; padding: 16px 0;">
         
         <div style="display: flex; flex-direction: column; gap: 12px;">
           <h3 style="margin: 0; color: var(--primary-text-color);">Entity Configuration</h3>
-          <ha-textfield id="wan_entity" label="WAN Entity ID (e.g., binary_sensor.wan)" style="width: 100%;"></ha-textfield>
-          <ha-textfield id="alarm_entity" label="Alarm Entity ID (e.g., alarm_control_panel.home)" style="width: 100%;"></ha-textfield>
-          <ha-textfield id="weather_entity" label="Weather Entity ID (e.g., weather.home)" style="width: 100%;"></ha-textfield>
+          <div>
+            <label style="${labelStyle}">WAN Entity ID (e.g., binary_sensor.wan)</label>
+            <input type="text" id="wan_entity" style="${inputStyle}" />
+          </div>
+          <div>
+            <label style="${labelStyle}">Alarm Entity ID (e.g., alarm_control_panel.home)</label>
+            <input type="text" id="alarm_entity" style="${inputStyle}" />
+          </div>
+          <div>
+            <label style="${labelStyle}">Weather Entity ID (e.g., weather.home)</label>
+            <input type="text" id="weather_entity" style="${inputStyle}" />
+          </div>
         </div>
 
         <div style="display: flex; flex-direction: column; gap: 12px;">
           <h3 style="margin: 0; color: var(--primary-text-color);">Night Mode Schedule</h3>
           <div style="display: flex; gap: 16px;">
-            <ha-textfield id="night_start" label="Start Hour (0-23)" type="number" style="flex: 1;"></ha-textfield>
-            <ha-textfield id="night_end" label="End Hour (0-23)" type="number" style="flex: 1;"></ha-textfield>
+            <div style="flex: 1;">
+              <label style="${labelStyle}">Start Hour (0-23)</label>
+              <input type="number" id="night_start" style="${inputStyle}" />
+            </div>
+            <div style="flex: 1;">
+              <label style="${labelStyle}">End Hour (0-23)</label>
+              <input type="number" id="night_end" style="${inputStyle}" />
+            </div>
           </div>
         </div>
 
         <div style="display: flex; flex-direction: column; gap: 12px;">
           <h3 style="margin: 0; color: var(--primary-text-color);">Custom Quotes</h3>
-          <ha-textfield id="quote_offline" label="WAN Offline" style="width: 100%;"></ha-textfield>
-          <ha-textfield id="quote_disarmed" label="Disarmed" style="width: 100%;"></ha-textfield>
-          <ha-textfield id="quote_armed_home" label="Armed Home" style="width: 100%;"></ha-textfield>
-          <ha-textfield id="quote_armed_away" label="Armed Away" style="width: 100%;"></ha-textfield>
-          <ha-textfield id="quote_night" label="Night Mode" style="width: 100%;"></ha-textfield>
+          <div><label style="${labelStyle}">WAN Offline</label><input type="text" id="quote_offline" style="${inputStyle}" /></div>
+          <div><label style="${labelStyle}">Disarmed</label><input type="text" id="quote_disarmed" style="${inputStyle}" /></div>
+          <div><label style="${labelStyle}">Armed Home</label><input type="text" id="quote_armed_home" style="${inputStyle}" /></div>
+          <div><label style="${labelStyle}">Armed Away</label><input type="text" id="quote_armed_away" style="${inputStyle}" /></div>
+          <div><label style="${labelStyle}">Night Mode</label><input type="text" id="quote_night" style="${inputStyle}" /></div>
         </div>
 
       </div>
@@ -222,7 +253,6 @@ class MoglieCardEditor extends HTMLElement {
 
     this.updateValues();
 
-    // Attach event listeners so typing in the box saves to Home Assistant
     const inputs = [
       'wan_entity', 'alarm_entity', 'weather_entity', 'night_start', 'night_end', 
       'quote_offline', 'quote_disarmed', 'quote_armed_home', 'quote_armed_away', 'quote_night'
@@ -246,14 +276,17 @@ class MoglieCardEditor extends HTMLElement {
     
     inputs.forEach((id) => {
       const el = this.querySelector(`#${id}`);
-      if (el && el.value !== this._config[id]) {
+      if (el && el.value !== String(this._config[id] || '')) {
         el.value = this._config[id] !== undefined ? this._config[id] : '';
       }
     });
   }
 
   _valueChanged(id, value) {
-    if (!this._config || this._config[id] === value) return;
+    if (!this._config) return;
+    
+    const currentVal = this._config[id] !== undefined ? String(this._config[id]) : '';
+    if (currentVal === value) return;
 
     const newConfig = { ...this._config, [id]: value };
     
