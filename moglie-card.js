@@ -50,6 +50,12 @@ class MoglieCard extends HTMLElement {
       });
     }
 
+    // Force an immediate re-render when the editor updates the config
+    if (this._hass) {
+      this._lastStatus = null; 
+      this.hass = this._hass;
+    }
+
     if (!config.wan_entity || !config.alarm_entity || !config.weather_entity) {
       this.content.innerHTML = "⚠️ Please configure Moglie's entities in the Visual Editor.";
       this.container.style.border = "2px dashed var(--error-color, red)";
@@ -57,13 +63,13 @@ class MoglieCard extends HTMLElement {
   }
 
   set hass(hass) {
+    this._hass = hass;
     if (!this.config || !this.config.wan_entity || !this.config.alarm_entity || !this.config.weather_entity) return;
 
     const wanEntity = hass.states[this.config.wan_entity];
     const alarmEntity = hass.states[this.config.alarm_entity];
     const weatherEntity = hass.states[this.config.weather_entity];
 
-    // FOOLPROOF CHECK: If the entity doesn't exist, tell the user instead of going to Away mode
     if (!wanEntity || !alarmEntity || !weatherEntity) {
       let missing = [];
       if (!wanEntity) missing.push(this.config.wan_entity);
@@ -82,8 +88,6 @@ class MoglieCard extends HTMLElement {
     const weatherState = String(weatherEntity.state).toLowerCase();
     
     const isWanActive = wanState === 'on' || wanState === 'connected' || wanState === 'true'; 
-    
-    // Broadened logic checks to catch virtually any alarm system's naming convention
     const isOffState = alarmState.includes('disarmed') || alarmState === 'off';
     const isHomeState = alarmState.includes('home') || alarmState.includes('night');
 
@@ -129,7 +133,8 @@ class MoglieCard extends HTMLElement {
     const isCold = temp !== null && ((isF && temp < 50) || (isC && temp < 10));
     const showWinter = isSnowing || isCold;
 
-    const statusKey = `${wanState}-${alarmState}-${isNightMode}-${isRaining}-${isHot}-${showWinter}`;
+    const configHash = JSON.stringify(this.config);
+    const statusKey = `${wanState}-${alarmState}-${isNightMode}-${isRaining}-${isHot}-${showWinter}-${configHash}`;
     if (this._lastStatus === statusKey) return; 
     this._lastStatus = statusKey;
 
@@ -201,11 +206,9 @@ class MoglieCardEditor extends HTMLElement {
   render() {
     if (!this._config) return;
 
-    // Standard HTML styling to make inputs look like native HA components
     const inputStyle = "width: 100%; padding: 8px; margin-top: 4px; border: 1px solid var(--divider-color, #ccc); border-radius: 4px; background: var(--card-background-color, #fff); color: var(--primary-text-color, #000); box-sizing: border-box; font-family: inherit;";
     const labelStyle = "font-size: 14px; font-weight: 500; color: var(--primary-text-color);";
 
-    // Replaced <ha-textfield> with 100% reliable standard HTML <input> elements
     this.innerHTML = `
       <div style="display: flex; flex-direction: column; gap: 20px; padding: 16px 0;">
         
@@ -261,7 +264,8 @@ class MoglieCardEditor extends HTMLElement {
     inputs.forEach((id) => {
       const el = this.querySelector(`#${id}`);
       if (el) {
-        el.addEventListener('input', (e) => this._valueChanged(id, e.target.value));
+        // We trigger on 'focusout' and 'change' instead of 'input' to completely eliminate text skipping
+        el.addEventListener('focusout', (e) => this._valueChanged(id, e.target.value));
         el.addEventListener('change', (e) => this._valueChanged(id, e.target.value));
       }
     });
@@ -276,8 +280,12 @@ class MoglieCardEditor extends HTMLElement {
     
     inputs.forEach((id) => {
       const el = this.querySelector(`#${id}`);
-      if (el && el.value !== String(this._config[id] || '')) {
-        el.value = this._config[id] !== undefined ? this._config[id] : '';
+      if (el) {
+        const expectedVal = this._config[id] !== undefined ? String(this._config[id]) : '';
+        // Only override if the value is different to stop cursor jumping
+        if (el.value !== expectedVal) {
+          el.value = expectedVal;
+        }
       }
     });
   }
