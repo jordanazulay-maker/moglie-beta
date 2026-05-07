@@ -88,8 +88,6 @@ class MoglieCard extends HTMLElement {
     
     const isWanActive = wanState === 'on' || wanState === 'connected' || wanState === 'true'; 
     const isOffState = alarmState.includes('disarmed') || alarmState === 'off';
-    
-    // Added 'stay' and 'partial' to catch more alarm types
     const isHomeState = alarmState.includes('home') || alarmState.includes('night') || alarmState.includes('stay') || alarmState.includes('partial');
 
     const currentHour = new Date().getHours();
@@ -170,9 +168,7 @@ class MoglieCard extends HTMLElement {
     } else if (isHomeState) {
       this.updateUI(normal_monkey, quotes.armedHome, "2px solid var(--success-color, green)");
     } else {
-      // DEBUGGER INJECTED HERE: This will print the actual state on your screen!
-      const debugMsg = `${quotes.armedAway} <br><br><span style="font-size: 0.8em; font-weight: normal; color: gray;">(Debug - Received State: '${alarmState}')</span>`;
-      this.updateUI(normal_monkey, debugMsg, "2px solid var(--error-color, red)");
+      this.updateUI(normal_monkey, quotes.armedAway, "2px solid var(--error-color, red)");
     }
   }
 
@@ -188,122 +184,76 @@ customElements.define('moglie-card', MoglieCard);
 
 
 /* -------------------------------------------------------------------
-   VISUAL EDITOR COMPONENT (GUI)
+   VISUAL EDITOR COMPONENT (NATIVE HA-FORM)
 ------------------------------------------------------------------- */
 class MoglieCardEditor extends HTMLElement {
-  
   setConfig(config) {
     this._config = config;
-    if (!this._rendered) {
-      this.render();
-      this._rendered = true;
+    if (this._form) {
+      this._form.data = config;
     } else {
-      this.updateValues();
+      this.render();
     }
   }
 
   set hass(hass) {
     this._hass = hass;
+    if (this._form) {
+      this._form.hass = hass;
+    } else {
+      this.render();
+    }
   }
 
   render() {
-    if (!this._config) return;
+    if (!this._hass || !this._config || this._form) return;
 
-    const inputStyle = "width: 100%; padding: 8px; margin-top: 4px; border: 1px solid var(--divider-color, #ccc); border-radius: 4px; background: var(--card-background-color, #fff); color: var(--primary-text-color, #000); box-sizing: border-box; font-family: inherit;";
-    const labelStyle = "font-size: 14px; font-weight: 500; color: var(--primary-text-color);";
+    this._form = document.createElement("ha-form");
+    this._form.hass = this._hass;
+    this._form.data = this._config;
 
-    this.innerHTML = `
-      <div style="display: flex; flex-direction: column; gap: 20px; padding: 16px 0;">
-        
-        <div style="display: flex; flex-direction: column; gap: 12px;">
-          <h3 style="margin: 0; color: var(--primary-text-color);">Entity Configuration</h3>
-          <div>
-            <label style="${labelStyle}">WAN Entity ID (e.g., binary_sensor.wan)</label>
-            <input type="text" id="wan_entity" style="${inputStyle}" />
-          </div>
-          <div>
-            <label style="${labelStyle}">Alarm Entity ID (e.g., alarm_control_panel.home)</label>
-            <input type="text" id="alarm_entity" style="${inputStyle}" />
-          </div>
-          <div>
-            <label style="${labelStyle}">Weather Entity ID (e.g., weather.home)</label>
-            <input type="text" id="weather_entity" style="${inputStyle}" />
-          </div>
-        </div>
-
-        <div style="display: flex; flex-direction: column; gap: 12px;">
-          <h3 style="margin: 0; color: var(--primary-text-color);">Night Mode Schedule</h3>
-          <div style="display: flex; gap: 16px;">
-            <div style="flex: 1;">
-              <label style="${labelStyle}">Start Hour (0-23)</label>
-              <input type="number" id="night_start" style="${inputStyle}" />
-            </div>
-            <div style="flex: 1;">
-              <label style="${labelStyle}">End Hour (0-23)</label>
-              <input type="number" id="night_end" style="${inputStyle}" />
-            </div>
-          </div>
-        </div>
-
-        <div style="display: flex; flex-direction: column; gap: 12px;">
-          <h3 style="margin: 0; color: var(--primary-text-color);">Custom Quotes</h3>
-          <div><label style="${labelStyle}">WAN Offline</label><input type="text" id="quote_offline" style="${inputStyle}" /></div>
-          <div><label style="${labelStyle}">Disarmed</label><input type="text" id="quote_disarmed" style="${inputStyle}" /></div>
-          <div><label style="${labelStyle}">Armed Home</label><input type="text" id="quote_armed_home" style="${inputStyle}" /></div>
-          <div><label style="${labelStyle}">Armed Away</label><input type="text" id="quote_armed_away" style="${inputStyle}" /></div>
-          <div><label style="${labelStyle}">Night Mode</label><input type="text" id="quote_night" style="${inputStyle}" /></div>
-        </div>
-
-      </div>
-    `;
-
-    this.updateValues();
-
-    const inputs = [
-      'wan_entity', 'alarm_entity', 'weather_entity', 'night_start', 'night_end', 
-      'quote_offline', 'quote_disarmed', 'quote_armed_home', 'quote_armed_away', 'quote_night'
+    // Define the native HA interface
+    this._form.schema = [
+      { name: "wan_entity", selector: { entity: { domain: "binary_sensor" } } },
+      { name: "alarm_entity", selector: { entity: { domain: "alarm_control_panel" } } },
+      { name: "weather_entity", selector: { entity: { domain: "weather" } } },
+      { name: "night_start", selector: { number: { min: 0, max: 23, mode: "box" } } },
+      { name: "night_end", selector: { number: { min: 0, max: 23, mode: "box" } } },
+      { name: "quote_offline", selector: { text: {} } },
+      { name: "quote_disarmed", selector: { text: {} } },
+      { name: "quote_armed_home", selector: { text: {} } },
+      { name: "quote_armed_away", selector: { text: {} } },
+      { name: "quote_night", selector: { text: {} } }
     ];
 
-    inputs.forEach((id) => {
-      const el = this.querySelector(`#${id}`);
-      if (el) {
-        el.addEventListener('focusout', (e) => this._valueChanged(id, e.target.value));
-        el.addEventListener('change', (e) => this._valueChanged(id, e.target.value));
-      }
+    // Give the inputs nice readable labels
+    this._form.computeLabel = (schema) => {
+      const labels = {
+        wan_entity: "WAN Entity (binary_sensor)",
+        alarm_entity: "Alarm Entity (alarm_control_panel)",
+        weather_entity: "Weather Entity (weather)",
+        night_start: "Night Mode Start Hour (0-23)",
+        night_end: "Night Mode End Hour (0-23)",
+        quote_offline: "Custom Quote: WAN Offline",
+        quote_disarmed: "Custom Quote: Disarmed",
+        quote_armed_home: "Custom Quote: Armed Home",
+        quote_armed_away: "Custom Quote: Armed Away",
+        quote_night: "Custom Quote: Night Mode"
+      };
+      return labels[schema.name] || schema.name;
+    };
+
+    // When the form changes, update the YAML seamlessly
+    this._form.addEventListener("value-changed", (ev) => {
+      const event = new Event("config-changed", {
+        bubbles: true,
+        composed: true,
+      });
+      event.detail = { config: ev.detail.value };
+      this.dispatchEvent(event);
     });
-  }
 
-  updateValues() {
-    if (!this._config) return;
-    const inputs = [
-      'wan_entity', 'alarm_entity', 'weather_entity', 'night_start', 'night_end', 
-      'quote_offline', 'quote_disarmed', 'quote_armed_home', 'quote_armed_away', 'quote_night'
-    ];
-    
-    inputs.forEach((id) => {
-      const el = this.querySelector(`#${id}`);
-      if (el) {
-        const expectedVal = this._config[id] !== undefined ? String(this._config[id]) : '';
-        if (el.value !== expectedVal) {
-          el.value = expectedVal;
-        }
-      }
-    });
-  }
-
-  _valueChanged(id, value) {
-    if (!this._config) return;
-    
-    const currentVal = this._config[id] !== undefined ? String(this._config[id]) : '';
-    if (currentVal === value) return;
-
-    this._config = { ...this._config, [id]: value };
-    
-    this.dispatchEvent(new CustomEvent("config-changed", {
-      detail: { config: this._config },
-      bubbles: true,
-      composed: true,
-    }));
+    this.appendChild(this._form);
   }
 }
 customElements.define("moglie-card-editor", MoglieCardEditor);
