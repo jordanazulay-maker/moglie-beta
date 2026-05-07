@@ -70,8 +70,8 @@ class MoglieCard extends HTMLElement {
     const isWanActive = wanState === 'on' || wanState === 'connected'; 
     const isOffState = alarmState === 'disarmed';
     
-    // FIX: Broader check for "Armed Home" variations
-    const isHomeState = alarmState === 'armed_home' || alarmState === 'home' || alarmState === 'armed_night';
+    // Check for standard HA states + variations with underscores or spaces
+    const isHomeState = alarmState === 'armed_home' || alarmState === 'home' || alarmState === 'armed_night' || alarmState === 'armed home';
 
     const currentHour = new Date().getHours();
     const nightStart = parseInt(this.config.night_start) || 22;
@@ -172,7 +172,15 @@ class MoglieCardEditor extends HTMLElement {
   
   setConfig(config) {
     this._config = config;
-    this.render();
+    
+    // Only build the HTML once to prevent text boxes from disappearing
+    if (!this._rendered) {
+      this.render();
+      this._rendered = true;
+    } else {
+      // If it already exists, just update the values
+      this.updateValues();
+    }
   }
 
   set hass(hass) {
@@ -182,7 +190,6 @@ class MoglieCardEditor extends HTMLElement {
   render() {
     if (!this._config) return;
 
-    // Standard HTML without Lit .value bindings to prevent invisible textboxes
     this.innerHTML = `
       <div style="display: flex; flex-direction: column; gap: 24px; padding: 16px 0;">
         
@@ -213,7 +220,9 @@ class MoglieCardEditor extends HTMLElement {
       </div>
     `;
 
-    // Hydrate fields and attach listeners manually
+    this.updateValues();
+
+    // Attach event listeners so typing in the box saves to Home Assistant
     const inputs = [
       'wan_entity', 'alarm_entity', 'weather_entity', 'night_start', 'night_end', 
       'quote_offline', 'quote_disarmed', 'quote_armed_home', 'quote_armed_away', 'quote_night'
@@ -222,17 +231,29 @@ class MoglieCardEditor extends HTMLElement {
     inputs.forEach((id) => {
       const el = this.querySelector(`#${id}`);
       if (el) {
+        el.addEventListener('input', (e) => this._valueChanged(id, e.target.value));
+        el.addEventListener('change', (e) => this._valueChanged(id, e.target.value));
+      }
+    });
+  }
+
+  updateValues() {
+    if (!this._config) return;
+    const inputs = [
+      'wan_entity', 'alarm_entity', 'weather_entity', 'night_start', 'night_end', 
+      'quote_offline', 'quote_disarmed', 'quote_armed_home', 'quote_armed_away', 'quote_night'
+    ];
+    
+    inputs.forEach((id) => {
+      const el = this.querySelector(`#${id}`);
+      if (el && el.value !== this._config[id]) {
         el.value = this._config[id] !== undefined ? this._config[id] : '';
-        const updateHandler = (e) => this._valueChanged(id, e.target.value);
-        el.addEventListener('input', updateHandler);
-        el.addEventListener('change', updateHandler);
       }
     });
   }
 
   _valueChanged(id, value) {
-    if (!this._config) return;
-    if (this._config[id] === value) return;
+    if (!this._config || this._config[id] === value) return;
 
     const newConfig = { ...this._config, [id]: value };
     
