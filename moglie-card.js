@@ -50,7 +50,6 @@ class MoglieCard extends HTMLElement {
       });
     }
 
-    // Force an immediate re-render when the editor updates the config
     if (this._hass) {
       this._lastStatus = null; 
       this.hass = this._hass;
@@ -76,7 +75,7 @@ class MoglieCard extends HTMLElement {
       if (!alarmEntity) missing.push(this.config.alarm_entity);
       if (!weatherEntity) missing.push(this.config.weather_entity);
       
-      this.content.innerHTML = `⚠️ Cannot find entity: <b>${missing.join(', ')}</b>. Please check your spelling.`;
+      this.content.innerHTML = `⚠️ Cannot find entity: <b>${missing.join(', ')}</b>. Check your spelling or YAML.`;
       this.container.style.border = "2px dashed var(--error-color, red)";
       this.image.src = normal_monkey;
       this.image.style.filter = "grayscale(100%)";
@@ -89,7 +88,9 @@ class MoglieCard extends HTMLElement {
     
     const isWanActive = wanState === 'on' || wanState === 'connected' || wanState === 'true'; 
     const isOffState = alarmState.includes('disarmed') || alarmState === 'off';
-    const isHomeState = alarmState.includes('home') || alarmState.includes('night');
+    
+    // Added 'stay' and 'partial' to catch more alarm types
+    const isHomeState = alarmState.includes('home') || alarmState.includes('night') || alarmState.includes('stay') || alarmState.includes('partial');
 
     const currentHour = new Date().getHours();
     const nightStart = parseInt(this.config.night_start) || 22;
@@ -169,7 +170,9 @@ class MoglieCard extends HTMLElement {
     } else if (isHomeState) {
       this.updateUI(normal_monkey, quotes.armedHome, "2px solid var(--success-color, green)");
     } else {
-      this.updateUI(normal_monkey, quotes.armedAway, "2px solid var(--error-color, red)");
+      // DEBUGGER INJECTED HERE: This will print the actual state on your screen!
+      const debugMsg = `${quotes.armedAway} <br><br><span style="font-size: 0.8em; font-weight: normal; color: gray;">(Debug - Received State: '${alarmState}')</span>`;
+      this.updateUI(normal_monkey, debugMsg, "2px solid var(--error-color, red)");
     }
   }
 
@@ -264,7 +267,6 @@ class MoglieCardEditor extends HTMLElement {
     inputs.forEach((id) => {
       const el = this.querySelector(`#${id}`);
       if (el) {
-        // We trigger on 'focusout' and 'change' instead of 'input' to completely eliminate text skipping
         el.addEventListener('focusout', (e) => this._valueChanged(id, e.target.value));
         el.addEventListener('change', (e) => this._valueChanged(id, e.target.value));
       }
@@ -282,7 +284,6 @@ class MoglieCardEditor extends HTMLElement {
       const el = this.querySelector(`#${id}`);
       if (el) {
         const expectedVal = this._config[id] !== undefined ? String(this._config[id]) : '';
-        // Only override if the value is different to stop cursor jumping
         if (el.value !== expectedVal) {
           el.value = expectedVal;
         }
@@ -296,10 +297,10 @@ class MoglieCardEditor extends HTMLElement {
     const currentVal = this._config[id] !== undefined ? String(this._config[id]) : '';
     if (currentVal === value) return;
 
-    const newConfig = { ...this._config, [id]: value };
+    this._config = { ...this._config, [id]: value };
     
     this.dispatchEvent(new CustomEvent("config-changed", {
-      detail: { config: newConfig },
+      detail: { config: this._config },
       bubbles: true,
       composed: true,
     }));
