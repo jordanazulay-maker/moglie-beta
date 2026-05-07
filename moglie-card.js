@@ -1,9 +1,8 @@
-// 1. Import your base64 images with Cache Busters (?v=12)
-import { normal_monkey } from './normal-monkey.js?v=12';
-import { winter_monkey } from './winter-monkey.js?v=12';
-import { rainy_monkey } from './rainy-monkey.js?v=12';
-import { summer_monkey } from './summer-monkey.js?v=12';
-import { sleepy_monkey } from './sleepy-monkey.js?v=12';
+import { normal_monkey } from './normal-monkey.js?v=1';
+import { winter_monkey } from './winter-monkey.js?v=1';
+import { rainy_monkey } from './rainy-monkey.js?v=1';
+import { summer_monkey } from './summer-monkey.js?v=1';
+import { sleepy_monkey } from './sleepy-monkey.js?v=1';
 
 /* -------------------------------------------------------------------
    MAIN CARD COMPONENT
